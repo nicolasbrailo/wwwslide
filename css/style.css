@@ -1,0 +1,52 @@
+
+html, body {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  display: flex;
+  justify-content: center; /* Center horizontally */
+  align-items: center; /* Center vertically */
+}
+
+#image_holder {
+  max-width: 100vw;
+  max-height: 100vh;
+}
+
+#image_info {
+  position: fixed;
+  z-index: 9999; /* Ensure it appears above other content */
+  bottom: 10px; /* Adjust as needed */
+  right: 10px; /* Adjust as needed */
+
+  border: 1px solid rgba(0, 0, 0);
+  border-radius: 10px; /* Adjust border radius as needed for rounded corners */
+  border: 1px black solid;
+
+  padding: 10px; /* Optional: add padding for better appearance */
+  background-color: rgba(255, 255, 255, 0.6); /* Background color with 10% transparency */
+}
+
+#app_info {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+
+  width: 50vw;
+  height: 50vh;
+
+  transform: translate(-50%, -50%);
+  z-index: 9999; /* Ensure it appears above other elements */
+
+  border: 1px solid rgba(255, 255, 255);
+  border-radius: 10px; /* Adjust border radius as needed for rounded corners */
+  border: 1px black solid;
+
+  background-color: rgba(0, 0, 0, 0.9);
+
+  display: none;
+  justify-content: center; /* Center horizontally */
+  align-items: center; /* Center vertically */
+}
+

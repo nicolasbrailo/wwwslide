@@ -58,26 +58,97 @@ class WakeupManager {
   }
 };
 
-function buildTextFromExif(meta) {
+// TODO serialize to local storage
+GPS_REVGEO_CACHE = {};
+function updateTextFromExif(meta, textEl, betterGps=null) {
+  function metaHasGps(meta) {
+    if (!meta.GPSLatitude || meta.GPSLatitude.length != 3) return false;
+    if (!meta.GPSLongitude || meta.GPSLongitude.length != 3) return false;
+    if (!meta.GPSLatitudeRef || ("NS".indexOf(meta.GPSLatitudeRef.toUpperCase()) == -1)) return false;
+    if (!meta.GPSLongitudeRef || ("WE".indexOf(meta.GPSLongitudeRef.toUpperCase()) == -1)) return false;
+    return true;
+  }
+
+  function reverseGeocode(meta) {
+    if (!metaHasGps(meta)) return null;
+    const geoApiKey = db.get('cfg_geoapify_api_key');
+    if (!geoApiKey) return null;
+
+    function dg(d,m,s,r) {
+      const R = ("WS".indexOf(r.toUpperCase()) != -1)? -1 : 1;
+      return R * (d + m/60 + s/3600);
+    };
+    const lat = dg(meta.GPSLatitude[0], meta.GPSLatitude[1], meta.GPSLatitude[2], meta.GPSLatitudeRef);
+    const lon = dg(meta.GPSLongitude[0], meta.GPSLongitude[1], meta.GPSLongitude[2], meta.GPSLongitudeRef);
+
+    const geo_key = `${Math.floor(lat / 0.01)}|${Math.floor(lon / 0.01)}`;
+    if (geo_key in GPS_REVGEO_CACHE) {
+      const cached = GPS_REVGEO_CACHE[geo_key];
+      console.log(`Using ${lat}:${lon} from cached ${geo_key} = ${cached}`);
+      return cached;
+    }
+
+    mAjax({
+      url: `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&format=json&apiKey=${geoApiKey}`,
+      type: 'get',
+      dataType: 'json',
+      error: console.error,
+      success: revgeo => {
+        window.revgeo = revgeo
+        revgeo.results[0]
+        if (!revgeo?.results?.length) {
+          console.error(`Can't reverse geocode ${lat};${lon}: ${revgeo}`);
+          return;
+        }
+        const res = revgeo.results[0];
+        //const revgeoT = res.formatted
+        const revgeoT = `${res.street}, ${res.city}, ${res.country}`;
+        // Recurse with a better gps description
+        updateTextFromExif(meta, textEl, betterGps=revgeoT);
+
+        // Cache
+        GPS_REVGEO_CACHE[geo_key] = revgeoT;
+      },
+    });
+  }
+
   function gpsText(meta) {
-    // TODO https://www.mapbox.com/pricing geocode
-    if (!meta.GPSLatitude || !meta.GPSLatitudeRef) return null;
-    if (!meta.GPSLongitude || !meta.GPSLongitudeRef) return null;
-    if (meta.GPSLatitude.length != 3) return null;
-    if (meta.GPSLongitude.length != 3) return null;
+    if (!metaHasGps(meta)) return null;
     const mkPart = p => `${p[0]}° ${p[1]}' ${Math.floor(p[2])}''`;
     const lat = `${mkPart(meta.GPSLatitude)} ${meta.GPSLatitudeRef}`;
     const lon = `${mkPart(meta.GPSLongitude)} ${meta.GPSLongitudeRef}`;
     return `${lat}, ${lon}`;
   }
 
-  const metaT = [];
-  metaT.push(`Photo taken ${meta.DateTime}`);
-  const gps = gpsText(meta);
-  if (gps) {
-    metaT.push(`Location: ${gps}`);
+  function takenTime(meta) {
+    if (meta.DateTimeOriginal) return meta.DateTimeOriginal;
+    if (meta.DateTime) return meta.DateTime;
+    return null;
   }
-  return metaT.join('\n');
+
+  const metaT = [];
+  const takenTimeT = takenTime(meta);
+  if (takenTimeT) {
+    metaT.push(`Photo taken ${takenTimeT}`);
+  }
+
+  if (betterGps) {
+    metaT.push(betterGps);
+  } else {
+    // Schedule a reverseGeocode update
+    // TODO: This has a race condition, if the revgeo response takes too much time it could update another image
+    const maybeCached = reverseGeocode(meta);
+    if (maybeCached) {
+        metaT.push(maybeCached);
+    } else {
+      const gps = gpsText(meta);
+      if (gps) {
+        metaT.push(`Location: ${gps}`);
+      }
+    }
+  }
+
+  textEl.innerText = metaT.join('\n');
 }
 
 const ImageInfoMode = Object.freeze({
@@ -90,7 +161,7 @@ class App {
   constructor(imageProvider) {
     this.transitionTimeSeconds = 5;
     this.imageInfoShownPct = 50;
-    this.imageInfoMode = ImageInfoMode.TIMEOUT;
+    this.imageInfoMode = ImageInfoMode.ALWAYS;
 
     this.imageProvider = imageProvider;
     this.wakeLock = new WakeupManager();
@@ -100,6 +171,9 @@ class App {
     this.metadataHideTimeMs = this.transitionTimeSeconds * 1000 * (this.imageInfoShownPct / 100);
     this.metadataHideJob = null;
 
+    this.stop = this.stop.bind(this);
+    this.start = this.start.bind(this);
+    this.toggle = this.toggle.bind(this);
     this.showNext = this.showNext.bind(this);
     this.updateMeta = this.updateMeta.bind(this);
     this.showMetadata = this.showMetadata.bind(this);
@@ -115,14 +189,34 @@ class App {
   }
 
   start() {
-    this.transitionJob = setInterval(this.showNext, this.transitionTimeMs);
+    this.transitionJob = setTimeout(this.showNext, this.transitionTimeMs);
     this.wakeLock.wakelock();
     this.showNext();
   }
 
+  toggle() {
+    if (this.transitionJob) {
+      this.stop();
+    } else {
+      this.start();
+    }
+  }
+
+  showPrev() {
+    console.error("showPrev not impl");
+  }
+
   showNext() {
     this.imageProvider.getNext().then(img => {
-      // TODO use timeout instead of interval, so that time of display isn't dependant on loading time
+      console.log("Image provider sends", img);
+
+      // If transitionJob is not null, the app is in slidshow mode - schedule the next
+      if (this.transitionJob) {
+        // clear old timeout first, in case showNext was called directly instead of being called by a timeout
+        clearTimeout(this.transitionJob);
+        this.transitionJob = setTimeout(this.showNext, this.transitionTimeMs);
+      }
+
       if (!img) {
         console.error("Image provider not ready...");
         return;
@@ -135,7 +229,7 @@ class App {
         this.showMetadata();
         if (this.imageInfoMode == ImageInfoMode.TIMEOUT) {
           clearTimeout(this.metadataHideJob);
-          this.metadataHideJob = setInterval(this.hideMetadata, this.metadataHideTimeMs);
+          this.metadataHideJob = setTimeout(this.hideMetadata, this.metadataHideTimeMs);
         }
       }
     });
@@ -145,7 +239,7 @@ class App {
     const imgEl = m$('image_holder');
     imgEl.exifdata = null;
     EXIF.getData(imgEl, () => {
-      m$('image_info').innerText = buildTextFromExif(imgEl.exifdata)
+      updateTextFromExif(imgEl.exifdata, m$('image_info'));
     });
   }
 
@@ -167,4 +261,18 @@ const REDIR_URI = "TODO";
 //window.pcProvider = new pCloudProvider(db, OAUTH_CLIENT_ID, REDIR_URI, '/Fotos/2017/Holanda');
 
 window.app = new App(pyprovider);
+
+m$('app_ctrl_cfg').addEventListener('click', () => { window.location.href = '/config.html'});
+m$('app_ctrl_prev').addEventListener('click', app.showPrev);
+m$('app_ctrl_next').addEventListener('click', app.showNext);
+m$('app_ctrl_toggle').addEventListener('click', app.toggle);
+
 app.showNext();
+
+document.addEventListener('keydown', event => {
+  if (event.keyCode === 37) {
+    app.showPrev();
+  } else if (event.keyCode === 39) {
+    app.showNext();
+  }
+});

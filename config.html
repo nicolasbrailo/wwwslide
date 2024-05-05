@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="css/magick.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <title>pps</title>
+</head>
+<body>
+
+Geoapify <a target="_blank" href="https://myprojects.geoapify.com/api/">API key</a>: <input type="text" id="cfg_geoapify_api_key"/>
+
+<button id="cfg_save">Save</button>
+
+<script src="js/localStorageManager.js"></script>
+<script src="js/miniJQuery.js"></script>
+<script>
+const db = new LocalStorageManager();
+
+m$('cfg_save').addEventListener('click', () => {
+  db.save('cfg_geoapify_api_key', m$('cfg_geoapify_api_key').value);
+  window.location.href = '/';
+});
+
+m$('cfg_geoapify_api_key').value = db.get('cfg_geoapify_api_key', '');
+</script>
+
+</body>
+</html>

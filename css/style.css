@@ -28,6 +28,21 @@ html, body {
   background-color: rgba(255, 255, 255, 0.6); /* Background color with 10% transparency */
 }
 
+#app_ctrl {
+  position: fixed;
+  z-index: 9999; /* Ensure it appears above other content */
+  bottom: 10px; /* Adjust as needed */
+  left: 10px; /* Adjust as needed */
+
+  border: 1px solid rgba(0, 0, 0);
+  border-radius: 10px; /* Adjust border radius as needed for rounded corners */
+  border: 1px black solid;
+
+  padding: 3px; /* Optional: add padding for better appearance */
+  margin-top: 0;
+  background-color: rgba(255, 255, 255, 0.6); /* Background color with 10% transparency */
+}
+
 #app_info {
   position: fixed;
   top: 50%;

@@ -3,6 +3,7 @@ import os
 
 HTML_DIRECTORY = '.'
 IMG_DIRECTORY = '/home/batman/Photos/'
+IMG_DIRECTORY = '/media/batman/COLD_BACKUP/pCloud/Fotos/'
 IMG_OK_EXTS = ['.jpg', '.jpeg', '.png']
 MAX_IMGS_PER_ALBUM = 3
 

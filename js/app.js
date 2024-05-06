@@ -88,6 +88,7 @@ function updateTextFromExif(meta, textEl, betterGps=null) {
       return cached;
     }
 
+    console.log(`Request location for ${lat}:${lon}`);
     mAjax({
       url: `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&format=json&apiKey=${geoApiKey}`,
       type: 'get',
@@ -159,12 +160,29 @@ const ImageInfoMode = Object.freeze({
 
 class App {
   constructor(imageProvider) {
-    this.transitionTimeSeconds = 5;
+    this.transitionTimeSeconds = 30;
     this.imageInfoShownPct = 50;
     this.imageInfoMode = ImageInfoMode.ALWAYS;
 
     this.imageProvider = imageProvider;
     this.wakeLock = new WakeupManager();
+
+    this.app_visibility = new VisibilityCallback();
+    this.pausedOnAppHidden = false;
+    this.app_visibility.app_became_visible = () => {
+      if (this.pausedOnAppHidden) {
+        console.log("App became visible and was running; will resume")
+        this.pausedOnAppHidden = false;
+        this.start();
+      }
+    }
+    this.app_visibility.app_became_hidden= () => {
+      if (this.transitionJob) {
+        console.log("App became hidden, will pause")
+        this.pausedOnAppHidden = true;
+        this.stop();
+      }
+    }
 
     this.transitionTimeMs = this.transitionTimeSeconds * 1000;
     this.transitionJob = null;
@@ -276,3 +294,4 @@ document.addEventListener('keydown', event => {
     app.showNext();
   }
 });
+

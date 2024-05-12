@@ -71,8 +71,9 @@ function updateTextFromExif(meta, textEl, betterGps=null) {
 
   function reverseGeocode(meta) {
     if (!metaHasGps(meta)) return null;
+    const useRevGeo = db.get('cfg_enable_revgeo');
     const geoApiKey = db.get('cfg_geoapify_api_key');
-    if (!geoApiKey) return null;
+    if (!useRevGeo || !geoApiKey) return null;
 
     function dg(d,m,s,r) {
       const R = ("WS".indexOf(r.toUpperCase()) != -1)? -1 : 1;
@@ -157,12 +158,22 @@ const ImageInfoMode = Object.freeze({
     NEVER: 1,
     TIMEOUT: 2,
 });
+function getConfigImageInfoMode(cfgDB) {
+  const v = cfgDB.get('cfg_metadata_display_mode', 'TIMEOUT');
+  if (v == 'NEVER') {
+    return ImageInfoMode.NEVER;
+  } else if (v == 'ALWAYS') {
+    return ImageInfoMode.ALWAYS;
+  } else {
+    return ImageInfoMode.TIMEOUT;
+  }
+}
 
 class App {
-  constructor(imageProvider) {
-    this.transitionTimeSeconds = 30;
+  constructor(cfgDB, imageProvider) {
+    this.transitionTimeSeconds = cfgDB.get('cfg_slideshow_transition_time', 45);
     this.imageInfoShownPct = 50;
-    this.imageInfoMode = ImageInfoMode.ALWAYS;
+    this.imageInfoMode = getConfigImageInfoMode(cfgDB);
 
     this.imageProvider = imageProvider;
     this.wakeLock = new WakeupManager();
@@ -270,6 +281,72 @@ class App {
   }
 };
 
+class AppUI {
+  constructor(slideshow) {
+    this.showAppCtrlsWithTimeout = this.showAppCtrlsWithTimeout.bind(this);
+
+    this.ss = slideshow;
+    this.showCtrlsTimeout = null;
+
+    this.TOUCH_SWIPE_MIN_DISTANCE = 50;
+    this.CTRLS_HIDE_TIMEOUT_MS = 5000;
+
+    m$('app_ctrl_cfg').addEventListener('click', () => { window.location.href = '/config.html'});
+    m$('app_ctrl_reload').addEventListener('click', () => { window.location.href = '/'});
+    m$('app_ctrl_prev').addEventListener('click', this.ss.showPrev);
+    m$('app_ctrl_next').addEventListener('click', this.ss.showNext);
+    m$('app_ctrl_toggle').addEventListener('click', this.ss.toggle);
+
+    // Capture left/right arrows
+    document.addEventListener('keydown', event => {
+      if (event.keyCode === 37) {
+        this.ss.showPrev();
+      } else if (event.keyCode === 39) {
+        this.ss.showNext();
+      }
+    });
+
+    // Capture swipes
+    this.touchstartX = null;
+    this.touchstartY = null;
+    document.addEventListener('touchstart', event => {
+      this.touchstartX = event.changedTouches[0].screenX;
+      this.touchstartY = event.changedTouches[0].screenY;
+      this.showAppCtrlsWithTimeout();
+    }, false);
+
+    document.addEventListener('touchend', event => {
+      const dx = this.touchstartX - event.changedTouches[0].screenX;
+      const dy = this.touchstartY - event.changedTouches[0].screenY;
+
+      if (dx < -this.TOUCH_SWIPE_MIN_DISTANCE) {
+        this.ss.showPrev();
+      } else if (dx > this.TOUCH_SWIPE_MIN_DISTANCE) {
+        this.ss.showNext();
+      }
+
+      event.stopPropagation();
+    }, false);
+
+    // On click show controls (TODO: Should be mousemove?)
+    document.addEventListener('click', event => {
+      this.showAppCtrlsWithTimeout();
+    }, false);
+
+    // Ensure controls are shown on startup
+    this.showAppCtrlsWithTimeout();
+  }
+
+  showAppCtrlsWithTimeout() {
+    m$('app_ctrl').style.display = '';
+    clearTimeout(this.showCtrlsTimeout);
+    function hideCtrls() {
+      m$('app_ctrl').style.display = 'none';
+    }
+    this.showCtrlsTimeout = setTimeout(hideCtrls, this.CTRLS_HIDE_TIMEOUT_MS);
+  }
+};
+
 const db = new LocalStorageManager();
 window.fsprovider = new RelFsProvider();
 window.pyprovider = new LocalPyProvider();
@@ -278,56 +355,6 @@ const OAUTH_CLIENT_ID = "TODO";
 const REDIR_URI = "TODO";
 //window.pcProvider = new pCloudProvider(db, OAUTH_CLIENT_ID, REDIR_URI, '/Fotos/2017/Holanda');
 
-window.app = new App(pyprovider);
-
-//m$('app_ctrl_cfg').addEventListener('click', () => { window.location.href = '/config.html'});
-m$('app_ctrl_cfg').addEventListener('click', () => { window.location.href = '/'});
-m$('app_ctrl_prev').addEventListener('click', app.showPrev);
-m$('app_ctrl_next').addEventListener('click', app.showNext);
-m$('app_ctrl_toggle').addEventListener('click', app.toggle);
-
+window.app = new App(db, pyprovider);
+window.appui = new AppUI(app);
 app.showNext();
-
-document.addEventListener('keydown', event => {
-  if (event.keyCode === 37) {
-    app.showPrev();
-  } else if (event.keyCode === 39) {
-    app.showNext();
-  }
-});
-
-
-
-var showCtrlsTimeout = null;
-function showCtrls() {
-  m$('app_ctrl').style.display = '';
-  clearTimeout(showCtrlsTimeout);
-  function hideCtrls() {
-    m$('app_ctrl').style.display = 'none';
-  }
-  showCtrlsTimeout = setTimeout(hideCtrls, 5000);
-}
-showCtrls();
-
-
-var touchstartX = 0;
-var touchstartY = 0;
-document.addEventListener('touchstart', event => {
-  touchstartX = event.changedTouches[0].screenX;
-  touchstartY = event.changedTouches[0].screenY;
-  showCtrls();
-}, false);
-
-
-document.addEventListener('touchend', event => {
-  const dx = touchstartX - event.changedTouches[0].screenX;
-  const dy = touchstartY - event.changedTouches[0].screenY;
-
-  if (dx < -50) {
-    app.showPrev();
-  } else if (dx > 50) {
-    app.showNext();
-  }
-
-  event.stopPropagation();
-}, false);

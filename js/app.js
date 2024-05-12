@@ -280,7 +280,8 @@ const REDIR_URI = "TODO";
 
 window.app = new App(pyprovider);
 
-m$('app_ctrl_cfg').addEventListener('click', () => { window.location.href = '/config.html'});
+//m$('app_ctrl_cfg').addEventListener('click', () => { window.location.href = '/config.html'});
+m$('app_ctrl_cfg').addEventListener('click', () => { window.location.href = '/'});
 m$('app_ctrl_prev').addEventListener('click', app.showPrev);
 m$('app_ctrl_next').addEventListener('click', app.showNext);
 m$('app_ctrl_toggle').addEventListener('click', app.toggle);
@@ -295,3 +296,38 @@ document.addEventListener('keydown', event => {
   }
 });
 
+
+
+var showCtrlsTimeout = null;
+function showCtrls() {
+  m$('app_ctrl').style.display = '';
+  clearTimeout(showCtrlsTimeout);
+  function hideCtrls() {
+    m$('app_ctrl').style.display = 'none';
+  }
+  showCtrlsTimeout = setTimeout(hideCtrls, 5000);
+}
+showCtrls();
+
+
+var touchstartX = 0;
+var touchstartY = 0;
+document.addEventListener('touchstart', event => {
+  touchstartX = event.changedTouches[0].screenX;
+  touchstartY = event.changedTouches[0].screenY;
+  showCtrls();
+}, false);
+
+
+document.addEventListener('touchend', event => {
+  const dx = touchstartX - event.changedTouches[0].screenX;
+  const dy = touchstartY - event.changedTouches[0].screenY;
+
+  if (dx < -50) {
+    app.showPrev();
+  } else if (dx > 50) {
+    app.showNext();
+  }
+
+  event.stopPropagation();
+}, false);

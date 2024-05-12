@@ -7,6 +7,7 @@ html, body {
   display: flex;
   justify-content: center; /* Center horizontally */
   align-items: center; /* Center vertically */
+  background-color: black;
 }
 
 #image_holder {
@@ -34,13 +35,25 @@ html, body {
   bottom: 10px; /* Adjust as needed */
   left: 10px; /* Adjust as needed */
 
-  border: 1px solid rgba(0, 0, 0);
-  border-radius: 10px; /* Adjust border radius as needed for rounded corners */
-  border: 1px black solid;
+  /*
+  border: 0px solid rgba(0, 0, 0);
+  border-radius: 10px;
 
-  padding: 3px; /* Optional: add padding for better appearance */
+  padding: 3px;
   margin-top: 0;
-  background-color: rgba(255, 255, 255, 0.6); /* Background color with 10% transparency */
+  background-color: rgba(255, 255, 255, 0.6);
+  */
+}
+#app_ctrl button {
+  border: 1px solid rgba(0, 0, 0);
+  border-radius: 10px;
+
+  padding: 3px;
+  margin-top: 0;
+  background-color: rgba(255, 255, 255, 0.6);
+
+  width: 6vw;
+  height: 3vw;
 }
 
 #app_info {

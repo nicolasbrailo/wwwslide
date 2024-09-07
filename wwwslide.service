@@ -1,0 +1,14 @@
+[Unit]
+Description=wwwslide
+
+[Service]
+ExecStart=/usr/bin/authbind --deep /usr/bin/python3 -m pipenv run python /home/batman/src/wwwslide/main.py
+WorkingDirectory=/home/batman/src/wwwslide
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+RestartSec=5
+User=batman
+
+[Install]
+WantedBy=multi-user.target

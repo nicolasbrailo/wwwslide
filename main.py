@@ -1,11 +1,11 @@
 import random
 import os
+import json
 
 HTML_DIRECTORY = '.'
-IMG_DIRECTORY = '/home/batman/Photos/'
-IMG_DIRECTORY = '/media/batman/COLD_BACKUP/pCloud/Fotos/'
+IMG_DIRECTORY = '/home/batman/extstorage/www_slide'
 IMG_OK_EXTS = ['.jpg', '.jpeg', '.png']
-MAX_IMGS_PER_ALBUM = 3
+MAX_IMGS_PER_ALBUM = 10
 
 
 def lsImgs(path):
@@ -27,29 +27,45 @@ def randomSelectImgs(n, dirs_base_path, dirs):
     if len(dirs) == 0:
         return []
     path = dirs[random.randint(0, len(dirs)-1)]
+    print("Select images from " + path)
     files = [os.path.join(path, f) for f in lsImgs(os.path.join(dirs_base_path, path))]
     files = random.sample(files, min(n, len(files)))
     files.sort()
-    return files
+    return path, files
 
 
 class Foo:
     def __init__(self, img_directory):
         self.img_directory = img_directory
         self.albums = lsDirs(img_directory)
+        print(f"Found {len(self.albums)} albums")
         self.max_imgs_per_album = MAX_IMGS_PER_ALBUM
+        self.album_path = None
         self.curr_imgs = []
+        self.curr_img_idx = 0
 
     def next(self):
+        if self.curr_img_idx+1 >= len(self.curr_imgs):
+            self.curr_imgs = []
+            self.curr_img_idx = 0
+
         tries = 10
         while len(self.curr_imgs) == 0:
             print("Run out of images, selecting new album")
-            self.curr_imgs = randomSelectImgs(self.max_imgs_per_album, self.img_directory, self.albums)
+            self.album_path, self.curr_imgs = randomSelectImgs(self.max_imgs_per_album, self.img_directory, self.albums)
             tries -= 1
             if tries <= 0:
                 raise RuntimeError("Can't find path with images")
 
-        return self.curr_imgs.pop(0)
+        self.curr_img_idx += 1
+        return self.curr_imgs[self.curr_img_idx]
+
+    def meta(self):
+        return json.dumps({
+            "album_path": self.album_path,
+            "image_index": self.curr_img_idx,
+            "image_count": len(self.curr_imgs),
+        })
 
 
 from flask import Flask, send_from_directory
@@ -70,6 +86,10 @@ def get_image():
 @app.route('/<path:path>')
 def serve_html(path):
     return send_from_directory(HTML_DIRECTORY, path)
+
+@app.route('/ctrl')
+def ctrl():
+    return foo.meta()
 
 if __name__ == '__main__':
     app.run(debug=True, host="0.0.0.0")

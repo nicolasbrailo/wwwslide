@@ -1,13 +1,13 @@
+#from cache.cache import cache_func
 import random
 import os
 import json
 import json
 import exifread
+from flask import Flask, send_from_directory
 
 HTML_DIRECTORY = '.'
-IMG_DIRECTORY = '/home/batman/extstorage/www_slide'
 IMG_OK_EXTS = ['.jpg', '.jpeg', '.png']
-MAX_IMGS_PER_ALBUM = 10
 
 def lsImgs(path):
     interesting = lambda p: os.path.isfile(p) and os.path.splitext(p)[1].lower() in IMG_OK_EXTS
@@ -34,6 +34,23 @@ def randomSelectImgs(n, dirs_base_path, dirs):
     files.sort()
     return path, files
 
+#@cache_func('cache/wget.pkl')
+def wget(url):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:128.0) Gecko/20100101 Firefox/128.0',
+    }
+    response = requests.get(url, headers=headers)
+    content = response.content.decode('utf-8')
+    return content
+
+def revgeo(geo_api_key, lat, lon):
+    url = f"https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&format=json&apiKey=${geo_api_key}"
+    loc = wget(url)
+    print(str(loc))
+    loc = json.loads(loc)
+    loc = loc["results"][0]
+    return loc
+
 def convert_to_degrees(value):
     """Helper function to convert the GPS coordinates stored in EXIF format to degrees."""
     d = float(value.values[0].num) / float(value.values[0].den)
@@ -56,7 +73,7 @@ def extract_gps(tags):
         lon = -lon
     return {"lat": lat, "lon": lon}
 
-def extract_exif(img_fullpath):
+def extract_all_exif(img_fullpath):
     exif = {}
     with open(img_fullpath, 'rb') as fp:
         tags = exifread.process_file(fp, details=False)
@@ -65,12 +82,22 @@ def extract_exif(img_fullpath):
         exif["gps"] = extract_gps(tags)
     return exif
 
-class Foo:
-    def __init__(self, img_directory):
-        self.img_directory = img_directory
-        self.albums = lsDirs(img_directory)
+def extract_exif(img_fullpath, rev_geo_apikey):
+    exif = extract_all_exif(img_fullpath)
+    interesting_meta = ["gps", "EXIF ExifImageWidth", "EXIF ExifImageLength", "EXIF DateTimeOriginal", "Image Make", "Image Model"]
+    return {k: exif[k] for k in interesting_meta if k in exif}
+
+
+class AlbumMgr:
+    def __init__(self, conf):
+        try:
+            self.rev_geo_apikey = conf["rev_geo_apikey"]
+        except KeyError:
+            self.rev_geo_apikey = None
+        self.img_directory = conf["img_directory"]
+        self.albums = lsDirs(conf["img_directory"])
         print(f"Found {len(self.albums)} albums")
-        self.max_imgs_per_album = MAX_IMGS_PER_ALBUM
+        self.max_imgs_per_album = int(conf["max_images_per_random_album"])
         self.album_path = None
         self.curr_imgs = []
         self.curr_img_idx = 0
@@ -103,26 +130,26 @@ class Foo:
             "image_count": len(self.curr_imgs),
             "image_path": img_path,
             "image_full_path": img_fullpath,
-            "image_exif": extract_exif(img_fullpath),
+            "image_exif": extract_exif(img_fullpath, self.rev_geo_apikey),
         }
 
         return json.dumps(meta)
 
 
-from flask import Flask, send_from_directory
+with open("config.json", 'r') as fp:
+    CONF = json.load(fp)
 
+albums = AlbumMgr(CONF)
 app = Flask(__name__)
-
 
 @app.route('/')
 def index():
     return send_from_directory(HTML_DIRECTORY, 'index.html')
 
-foo = Foo(IMG_DIRECTORY)
 @app.route('/get_image')
 def get_image():
-    img = foo.next()
-    return send_from_directory(IMG_DIRECTORY, img)
+    img = albums.next()
+    return send_from_directory(CONF["img_directory"], img)
 
 @app.route('/<path:path>')
 def serve_html(path):
@@ -130,7 +157,8 @@ def serve_html(path):
 
 @app.route('/ctrl')
 def ctrl():
-    return foo.meta()
+    return albums.meta()
+
 
 if __name__ == '__main__':
     app.run(debug=True, host="0.0.0.0")

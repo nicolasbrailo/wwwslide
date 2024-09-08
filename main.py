@@ -1,12 +1,13 @@
 import random
 import os
 import json
+import json
+import exifread
 
 HTML_DIRECTORY = '.'
 IMG_DIRECTORY = '/home/batman/extstorage/www_slide'
 IMG_OK_EXTS = ['.jpg', '.jpeg', '.png']
 MAX_IMGS_PER_ALBUM = 10
-
 
 def lsImgs(path):
     interesting = lambda p: os.path.isfile(p) and os.path.splitext(p)[1].lower() in IMG_OK_EXTS
@@ -33,6 +34,36 @@ def randomSelectImgs(n, dirs_base_path, dirs):
     files.sort()
     return path, files
 
+def convert_to_degrees(value):
+    """Helper function to convert the GPS coordinates stored in EXIF format to degrees."""
+    d = float(value.values[0].num) / float(value.values[0].den)
+    m = float(value.values[1].num) / float(value.values[1].den)
+    s = float(value.values[2].num) / float(value.values[2].den)
+    return d + (m / 60.0) + (s / 3600.0)
+
+def extract_gps(tags):
+    if not tags or \
+       not tags.get('GPS GPSLatitude') or \
+       not tags.get('GPS GPSLatitudeRef') or \
+       not tags.get('GPS GPSLongitude') or \
+       not tags.get('GPS GPSLongitudeRef'):
+        return None
+    lat = convert_to_degrees(tags.get('GPS GPSLatitude'))
+    lon = convert_to_degrees(tags.get('GPS GPSLongitude'))
+    if tags.get('GPS GPSLatitudeRef').values[0] != 'N':
+        lat = -lat
+    if tags.get('GPS GPSLongitudeRef').values[0] != 'E':
+        lon = -lon
+    return {"lat": lat, "lon": lon}
+
+def extract_exif(img_fullpath):
+    exif = {}
+    with open(img_fullpath, 'rb') as fp:
+        tags = exifread.process_file(fp, details=False)
+        for k,v in tags.items():
+            exif[k] = str(v)
+        exif["gps"] = extract_gps(tags)
+    return exif
 
 class Foo:
     def __init__(self, img_directory):
@@ -61,11 +92,21 @@ class Foo:
         return self.curr_imgs[self.curr_img_idx]
 
     def meta(self):
-        return json.dumps({
+        if self.curr_img_idx >= len(self.curr_imgs):
+            return json.dumps({})
+
+        img_path = self.curr_imgs[self.curr_img_idx]
+        img_fullpath = os.path.join(self.img_directory, img_path)
+        meta = {
             "album_path": self.album_path,
             "image_index": self.curr_img_idx,
             "image_count": len(self.curr_imgs),
-        })
+            "image_path": img_path,
+            "image_full_path": img_fullpath,
+            "image_exif": extract_exif(img_fullpath),
+        }
+
+        return json.dumps(meta)
 
 
 from flask import Flask, send_from_directory

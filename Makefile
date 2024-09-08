@@ -7,7 +7,7 @@ run_local:
 	python3 ./main.py
 
 install_deps:
-	pipenv install flask
+	pipenv install flask exifread
 
 install_service:
 	sudo cp ./wwwslide.service /etc/systemd/system/

@@ -1,10 +1,11 @@
-#from cache.cache import cache_func
-import random
-import os
-import json
-import json
-import exifread
 from flask import Flask, send_from_directory
+from pymethodecache.cache import cache_func
+import exifread
+import json
+import json
+import os
+import random
+import requests
 
 HTML_DIRECTORY = '.'
 IMG_OK_EXTS = ['.jpg', '.jpeg', '.png']
@@ -34,7 +35,7 @@ def randomSelectImgs(n, dirs_base_path, dirs):
     files.sort()
     return path, files
 
-#@cache_func('cache/wget.pkl')
+@cache_func('cache/wget.pkl')
 def wget(url):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:128.0) Gecko/20100101 Firefox/128.0',
@@ -43,13 +44,20 @@ def wget(url):
     content = response.content.decode('utf-8')
     return content
 
+def extract_keys(dic, interesting_keys):
+    return {k: dic[k] for k in interesting_keys if k in dic}
+
 def revgeo(geo_api_key, lat, lon):
-    url = f"https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&format=json&apiKey=${geo_api_key}"
-    loc = wget(url)
-    print(str(loc))
-    loc = json.loads(loc)
-    loc = loc["results"][0]
-    return loc
+    url = f"https://api.geoapify.com/v1/geocode/reverse?lat={round(lat, 3)}&lon={round(lon, 3)}&format=json&apiKey={geo_api_key}"
+    try:
+        loc_req = wget(url)
+        loc = json.loads(loc_req)["results"][0]
+        if "formatted" in loc:
+            loc["revgeo"] = loc["formatted"]
+        filt_loc = extract_keys(loc, ["country", "state", "city", "postcode", "revgeo", "address_line1", "address_line2"])
+        return filt_loc
+    except KeyError:
+        return None
 
 def convert_to_degrees(value):
     """Helper function to convert the GPS coordinates stored in EXIF format to degrees."""
@@ -73,19 +81,25 @@ def extract_gps(tags):
         lon = -lon
     return {"lat": lat, "lon": lon}
 
-def extract_all_exif(img_fullpath):
+def extract_all_exif(img_fullpath, rev_geo_apikey):
     exif = {}
     with open(img_fullpath, 'rb') as fp:
         tags = exifread.process_file(fp, details=False)
         for k,v in tags.items():
             exif[k] = str(v)
         exif["gps"] = extract_gps(tags)
+
+    if exif["gps"]:
+        exif["reverse_geo"] = revgeo(rev_geo_apikey, exif["gps"]["lat"], exif["gps"]["lon"])
+    else:
+        exif["reverse_geo"] = None
+
     return exif
 
 def extract_exif(img_fullpath, rev_geo_apikey):
-    exif = extract_all_exif(img_fullpath)
-    interesting_meta = ["gps", "EXIF ExifImageWidth", "EXIF ExifImageLength", "EXIF DateTimeOriginal", "Image Make", "Image Model"]
-    return {k: exif[k] for k in interesting_meta if k in exif}
+    exif = extract_all_exif(img_fullpath, rev_geo_apikey)
+    interesting_meta = ["gps", "reverse_geo", "EXIF ExifImageWidth", "EXIF ExifImageLength", "EXIF DateTimeOriginal", "Image Make", "Image Model"]
+    return extract_keys(exif, interesting_meta)
 
 
 class AlbumMgr:
@@ -155,8 +169,8 @@ def get_image():
 def serve_html(path):
     return send_from_directory(HTML_DIRECTORY, path)
 
-@app.route('/ctrl')
-def ctrl():
+@app.route('/meta')
+def meta():
     return albums.meta()
 
 

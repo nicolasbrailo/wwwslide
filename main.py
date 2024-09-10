@@ -156,6 +156,22 @@ class AlbumMgr:
         self.curr_imgs = []
         self.curr_img_idx = 0
 
+    def select_new_album(self, img_new_album=None):
+        self.curr_imgs = []
+        self.curr_img_idx = 0
+        if img_new_album is None:
+            self.next()
+            return True
+        else:
+            try:
+                self.album_path = os.path.dirname(img_new_album)
+                path = os.path.join(self.img_directory, self.album_path)
+                self.curr_imgs = [os.path.join(path, f) for f in lsImgs(path)]
+                self.curr_img_idx = 0
+                return True
+            except FileNotFoundError:
+                return False
+
     def next(self):
         if self.curr_img_idx+1 >= len(self.curr_imgs):
             self.curr_imgs = []
@@ -233,6 +249,46 @@ def get_image_meta(hashedpath):
         "image_exif": extract_exif(img_fullpath, CONF["rev_geo_apikey"]),
     }
     return json.dumps(meta)
+
+@app.route("/new_random_album")
+def new_random_album():
+    return "OK" if albums.select_new_album() else "Can't find album"
+
+@app.route("/see_complete_album/<path:hashedpath>")
+def see_complete_album(hashedpath):
+    img_path = mk_image_path_from_hash(hashedpath)
+    return "OK" if albums.select_new_album(img_path) else "Can't find album"
+
+@app.route('/rc')
+@app.route('/rc/<path:hashedpath>')
+def rc(hashedpath=None):
+    img_path = mk_image_path_from_hash(hashedpath)
+    img_fullpath = os.path.join(CONF["img_directory"], img_path)
+    exif = extract_exif(img_fullpath, CONF["rev_geo_apikey"])
+    return f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="/css/magick.min.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <title>wwwslide</title>
+</head>
+<body>
+<div width="99%" display="block">
+Picture: {img_path}<br>
+Taken: {exif["EXIF DateTimeOriginal"]}<br/>
+Where: {exif["reverse_geo"]["revgeo"]}<br/>
+Cam: {exif["Image Make"]} {exif["Image Model"]}<br/>
+<a href="/new_random_album">New random album</a></br>
+<a href="/see_complete_album/{hashedpath}">See full album</a></br>
+</div>
+</body>
+</html>
+"""
+
 
 @app.route('/<path:path>')
 def serve_html(path):

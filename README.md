@@ -2,7 +2,7 @@
 
 wwwslide is a client/server for LAN slideshows. If you have a large picture collection and want a way to display them in multiple places, wwwslide server will create a web interface to retrieve random pictures from a single url. The web client can display these pictures, but there is no reason to use the included client: you could curl wwwslide and pipe it to an image viewer.
 
-[![](/blog_img/1009_wwwslide.jpg)](/blog_img/1009_wwwslide.jpg)
+[![](https://raw.githubusercontent.com/nicolasbrailo/wwwslide/main/wwwslide.jpg)](https://raw.githubusercontent.com/nicolasbrailo/wwwslide/main/wwwslide.jpg)
 
 ^ looks like this, sans cool picture
 

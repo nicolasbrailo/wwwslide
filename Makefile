@@ -7,7 +7,7 @@ run_local:
 	python3 ./main.py
 
 install_deps:
-	pipenv install flask exifread requests
+	pipenv install flask exifread requests pillow qrcode
 
 install_service:
 	sudo cp ./wwwslide.service /etc/systemd/system/

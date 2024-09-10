@@ -8,6 +8,7 @@ flask = "*"
 pillow = "*"
 exifread = "*"
 requests = "*"
+qrcode = "*"
 
 [dev-packages]
 

@@ -102,6 +102,46 @@ def extract_exif(img_fullpath, rev_geo_apikey):
     return extract_keys(exif, interesting_meta)
 
 
+from PIL import Image, ImageDraw
+import qrcode
+
+def make_qr(url, w, h):
+    qr = qrcode.QRCode(
+        version=1,  # Controls the size of the QR code (1 is 21x21 matrix)
+        error_correction=qrcode.constants.ERROR_CORRECT_L,  # About 7% error correction
+        box_size=10,  # Size of each box in pixels
+        border=1,  # Thickness of the border
+    )
+
+    qr.add_data(url)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill="black", back_color="white")
+
+    # Adjust the size as needed
+    qr_img = qr_img.resize((w, h))
+    return qr_img
+
+def add_qr_to_img(img_path, img_out_path, qr_url):
+    base_image = Image.open(img_path)
+    width, height = base_image.size
+    QR_PCT_SZ = 0.1
+    qrsz = max(int(QR_PCT_SZ * width), int(QR_PCT_SZ * height))
+
+    qr = make_qr(qr_url, qrsz, qrsz)
+
+    # Step 4: Paste the QR code onto the base image as a watermark
+    # You can position it as needed (here it's at the bottom-right corner)
+    position = (base_image.width - qr.width - 10, base_image.height - qr.height - 10)
+    base_image.paste(qr, position)
+
+    base_image.save(img_out_path, "JPEG")
+
+import urllib.parse
+def mk_image_hash(fpath):
+    return urllib.parse.quote_plus(fpath)
+def mk_image_path_from_hash(hashedpath):
+    return urllib.parse.unquote_plus(hashedpath)
+
 class AlbumMgr:
     def __init__(self, conf):
         try:
@@ -162,8 +202,37 @@ def index():
 
 @app.route('/get_image')
 def get_image():
+    print("HOLA")
     img = albums.next()
-    return send_from_directory(CONF["img_directory"], img)
+    hashedpath = mk_image_hash(img)
+    qr_url = CONF["service_url"] + '/get_image_meta/' + hashedpath
+    img_out_path = os.path.join(CONF["img_cache_directory"], hashedpath)
+
+    print(qr_url, img_out_path)
+
+    # TODO: if fexists img_out_path: skip gen image
+    # TODO: limit cache size
+    add_qr_to_img(os.path.join(CONF["img_directory"], img), img_out_path, qr_url)
+    return send_from_directory(CONF["img_cache_directory"], hashedpath, download_name=hashedpath)
+
+@app.route('/get_image_raw/<path:hashedpath>')
+def get_image_raw(hashedpath):
+    img = mk_image_path_from_hash(hashedpath)
+    return send_from_directory(CONF["img_directory"], img, download_name=hashedpath)
+
+@app.route('/get_image_meta/<path:hashedpath>')
+def get_image_meta(hashedpath):
+    img_path = mk_image_path_from_hash(hashedpath)
+    img_fullpath = os.path.join(CONF["img_directory"], img_path)
+    meta = {
+        "album_path": albums.album_path,
+        "image_index": albums.curr_img_idx,
+        "image_count": len(albums.curr_imgs),
+        "image_path": img_path,
+        "image_full_path": img_fullpath,
+        "image_exif": extract_exif(img_fullpath, CONF["rev_geo_apikey"]),
+    }
+    return json.dumps(meta)
 
 @app.route('/<path:path>')
 def serve_html(path):

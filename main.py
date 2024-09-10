@@ -218,10 +218,9 @@ def index():
 
 @app.route('/get_image')
 def get_image():
-    print("HOLA")
     img = albums.next()
     hashedpath = mk_image_hash(img)
-    qr_url = CONF["service_url"] + '/get_image_meta/' + hashedpath
+    qr_url = CONF["service_url"] + '/rc/' + hashedpath
     img_out_path = os.path.join(CONF["img_cache_directory"], hashedpath)
 
     print(qr_url, img_out_path)

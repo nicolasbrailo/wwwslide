@@ -9,6 +9,7 @@ pillow = "*"
 exifread = "*"
 requests = "*"
 qrcode = "*"
+schedule = "*"
 
 [dev-packages]
 

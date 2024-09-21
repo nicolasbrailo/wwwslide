@@ -145,7 +145,7 @@ def mk_image_path_from_hash(hashedpath):
 
 import threading
 import time
-import datetime
+from datetime import datetime, timedelta
 def delete_old_files(directory, days_threshold):
     try:
         threshold_date = datetime.now() - timedelta(days=days_threshold)
@@ -161,11 +161,12 @@ def delete_old_files(directory, days_threshold):
                     print(f'Cleanup old cache {file_path}')
 
     except Exception as e:
-       print('Failed to cleanup old cached assets')
+        print('Failed to cleanup old cached assets: ' + str(e))
 
 def setup_cleanup_cache(cache_dir):
     def run():
         while True:
+            print('Clean up old files')
             delete_old_files(cache_dir, 1)
             # Sleep for a day
             time.sleep(60 * 60 * 24)

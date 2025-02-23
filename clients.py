@@ -1,4 +1,5 @@
 from flask import request
+from image_sender import img_path_from_hash, get_img_meta
 import json
 import time
 import os
@@ -18,6 +19,7 @@ class Clients:
         self.embed_info_qr_code_default = conf["embed_info_qr_code_default"]
         self.default_target_width = int(conf["default_target_width"])
         self.default_target_height = int(conf["default_target_height"])
+        self.img_directory = conf["img_directory"]
 
         self.albums = albums
         self.img_sender = img_sender
@@ -41,6 +43,10 @@ class Clients:
         flask_app.add_url_rule("/get_next_img/<client_id>", "get_next_img", self.get_next_img)
         flask_app.add_url_rule("/get_prev_img", "get_prev_img", self.get_prev_img)
         flask_app.add_url_rule("/get_prev_img/<client_id>", "get_prev_img", self.get_prev_img)
+        flask_app.add_url_rule("/reset_album", "reset_album", self.reset_album)
+        flask_app.add_url_rule("/reset_album/<client_id>", "reset_album", self.reset_album)
+        flask_app.add_url_rule("/show_full_album@<path:imghash>", "show_full_album", self.show_full_album)
+        flask_app.add_url_rule("/show_full_album/<client_id>@<path:imghash>", "show_full_album", self.show_full_album)
 
 
     def _guess_client(self, client_id=None):
@@ -124,10 +130,33 @@ class Clients:
         return json.dumps(None)
 
 
+    def reset_album(self, client_id=None):
+        client_id = self._guess_or_register_client(client_id)
+        cfg = self.known_clients[client_id]
+        del cfg["imgs_queue"][cfg["imgs_queue_idx"]+1:]
+        return "OK"
+
+
+    def show_full_album(self, client_id=None, imghash=None):
+        if imghash is None:
+            raise ValueError("Invalid image or album hash")
+        imgpath = img_path_from_hash(imghash)
+        if not imgpath.startswith(self.img_directory):
+            raise ValueError(f"Invalid image path {imgpath}")
+        client_id = self._guess_or_register_client(client_id)
+        cfg = self.known_clients[client_id]
+        self.reset_album(client_id)
+        album = get_img_meta(self.img_directory, imgpath, None)['albumpath']
+        cfg["active_album"] = album
+        # No remove if history bigger than max; user requested full album
+        new_imgs = self.albums.random_select_pictures(cfg["active_album"], None)
+        cfg["imgs_queue"].extend(new_imgs)
+        return "OK"
+
+
     def get_next_img(self, client_id=None):
         client_id = self._guess_or_register_client(client_id)
         cfg = self.known_clients[client_id]
-
         if cfg["imgs_queue_idx"] + 1 >= len(cfg["imgs_queue"]):
             cfg["active_album"] = self.albums.get_random()
             new_imgs = self.albums.random_select_pictures(cfg["active_album"], self.max_images_per_album)

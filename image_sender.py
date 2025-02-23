@@ -1,3 +1,4 @@
+from img_meta import get_img_meta
 from flask import send_file
 from PIL import Image
 import os
@@ -5,7 +6,10 @@ import qrcode
 import urllib.parse
 
 def mk_image_hash(cfg, path):
-    return cfg["service_url"] + '/qr/' + urllib.parse.quote_plus(path)
+    return cfg["service_url"] + '/img/qr/' + urllib.parse.quote_plus(path)
+
+def img_path_from_hash(imghash):
+    return '/' + urllib.parse.unquote_plus(imghash)
 
 def make_qr(cfg, path, w, h):
     qr = qrcode.QRCode(
@@ -75,20 +79,33 @@ def _maybe_mogrify_image(cfg, client_cfg, path):
     img.save(cached_img_path)
     return cached_img_path
 
-
 class ImageSender:
-    def __init__(self, conf):
+    def __init__(self, conf, flask_app):
         self.cfg = {
             "img_cache_directory": conf["img_cache_directory"],
             "img_directory":  conf["img_directory"],
             "service_url":  conf["service_url"],
+            "rev_geo_apikey": conf["rev_geo_apikey"],
         }
 
         if not os.path.exists(self.cfg["img_cache_directory"]) or not os.path.isdir(self.cfg["img_cache_directory"]):
             raise ValueError(f"Cache directory {self.img_cache_directory} doesn't exist or isn't a directory")
 
+        flask_app.add_url_rule("/img/qr/<path:imghash>", "img_qr", self.img_qr)
+        flask_app.add_url_rule("/img/raw/<path:imghash>", "img_raw", self.img_raw)
 
     def send_image(self, client_cfg, path):
         path = _maybe_mogrify_image(self.cfg, client_cfg, path)
         return send_file(path)
+
+    def img_qr(self, imghash):
+        imgpath = img_path_from_hash(imghash)
+        return get_img_meta(self.cfg["img_directory"], imgpath, self.cfg["rev_geo_apikey"])
+
+    def img_raw(self, imghash):
+        imgpath = img_path_from_hash(imghash)
+        if not imgpath.startswith(self.cfg["img_directory"]):
+            raise ValueError(f"Invalid image path {path}")
+        return send_file(imgpath)
+
 

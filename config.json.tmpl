@@ -1,18 +1,32 @@
 {
   "COMMENT": "Where to retrieve images for the slideshow",
-  "img_directory": "/home/batman/extstorage/www_slide",
+  "img_directory": "/home/batman/Photos/ToTag/",
 
-  "COMMENT": "Where to store cached images (eg when resizing or adding a qr code",
-  "img_cache_directory": "/home/batman/extstorage/www_slide/cache",
+  "COMMENT": "Where to store cached images (eg when resizing or adding a qr code)",
+  "img_cache_directory": "/home/batman/Photos/wwwslide_cache",
 
-  "COMMENT": "Externally accsible URL to this service",
-  "service_url": "http://10.0.0.10:5000",
+  "COMMENT": "Allowed image extensions",
+  "allowed_extensions": [".jpg", ".jpeg", ".png"],
 
   "COMMENT": "Max number of random images to pick from an album",
-  "max_images_per_random_album": 10,
+  "max_images_per_album": 2,
+
+  "COMMENT": "Max number of images to keep in memory for each client (history of images + images to come)",
+  "image_queue_size": 5,
+
+  "COMMENT": "Embed a QR code to link back to the image info page by default. Clients can override",
+  "embed_info_qr_code_default": true,
+
+  "COMMENT": "Default resolution: images bigger than this will be resized, unless client changes target resolution",
+  "default_target_width": 1920,
+  "default_target_height": 1080,
+
+  "COMMENT": "Externally accesible URL to this service, used to embed info in image's QR codes",
+  "service_url": "http://0.0.0.0:5000",
 
   "COMMENT": "Geoapify key, see https://myprojects.geoapify.com/projects",
   "rev_geo_apikey": "",
 
   "YAY": "JSON!"
 }
+

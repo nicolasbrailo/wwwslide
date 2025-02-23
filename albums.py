@@ -34,6 +34,9 @@ def get_random_files(cnt, path, allowed_extensions):
         if os.path.isfile(os.path.join(path, f)) and f.lower().endswith(tuple(allowed_extensions))
     ]
 
+    if cnt is None:
+        # If an album has more than this, surely the user won't notice
+        cnt = 99999
     return random.sample(files, min(cnt, len(files)))
 
 class Albums:

@@ -98,6 +98,9 @@ class ImageSender:
         path = _maybe_mogrify_image(self.cfg, client_cfg, path)
         return send_file(path)
 
+    def get_image_meta(self, imgpath):
+        return get_img_meta(self.cfg["img_directory"], imgpath, self.cfg["rev_geo_apikey"])
+
     def img_qr(self, imghash):
         imgpath = img_path_from_hash(imghash)
         return get_img_meta(self.cfg["img_directory"], imgpath, self.cfg["rev_geo_apikey"])

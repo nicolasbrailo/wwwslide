@@ -50,8 +50,13 @@ def wget(url):
 def add_rev_geo(exif, rev_geo_apikey):
     if rev_geo_apikey is None or len(rev_geo_apikey) == 0 or "gps" not in exif:
         return
-    lat = exif["gps"]["lat"]
-    lon = exif["gps"]["lon"]
+    try:
+        lat = exif["gps"]["lat"]
+        lon = exif["gps"]["lon"]
+    except TypeError:
+        print(f"Invalid GPS {exif['gps']}")
+        return
+
     url = f"https://api.geoapify.com/v1/geocode/reverse?lat={round(lat, 3)}&lon={round(lon, 3)}&format=json&apiKey={rev_geo_apikey}"
     try:
         loc_req = wget(url)

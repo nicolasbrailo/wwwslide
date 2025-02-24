@@ -18,16 +18,43 @@ html, body {
 #image_info {
   position: fixed;
   z-index: 9999; /* Ensure it appears above other content */
-  bottom: 10px; /* Adjust as needed */
-  right: 10px; /* Adjust as needed */
+  top: 10px;
+  right: 10px;
+  width: 25%;
+
+  max-height: 25%;
+  overflow-y: auto;
 
   border: 1px solid rgba(0, 0, 0);
   border-radius: 10px; /* Adjust border radius as needed for rounded corners */
   border: 1px black solid;
 
   padding: 10px; /* Optional: add padding for better appearance */
-  background-color: rgba(255, 255, 255, 0.6); /* Background color with 10% transparency */
+  color: rgba(55, 55, 55, 0.8);
+  background-color: rgba(255, 255, 255, 0.8);
 }
+
+#app_config {
+  display: none;
+  position: fixed;
+  z-index: 9999; /* Ensure it appears above other content */
+  top: 10px;
+  left: 10px;
+  width: 25%;
+
+  max-height: 25%;
+  overflow-y: auto;
+
+  border: 1px solid rgba(0, 0, 0);
+  border-radius: 10px; /* Adjust border radius as needed for rounded corners */
+  border: 1px black solid;
+
+  padding: 10px; /* Optional: add padding for better appearance */
+  color: rgba(55, 55, 55, 0.8);
+  background-color: rgba(255, 255, 255, 0.8);
+}
+
+
 
 #app_ctrl {
   position: fixed;
@@ -46,6 +73,11 @@ html, body {
   width: 6vw;
   height: 3vw;
   font-size: 3cqh;
+}
+
+#app_ctrl button.enabled {
+  border: 2px black solid !important;
+  background-color: rgba(200, 200, 200, 0.4) !important;
 }
 
 #app_info {
@@ -69,4 +101,3 @@ html, body {
   justify-content: center; /* Center horizontally */
   align-items: center; /* Center vertically */
 }
-

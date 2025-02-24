@@ -32,9 +32,6 @@
 ### 
 ### setup_cleanup_cache(CONF["img_cache_directory"])
 ### 
-### @app.route('/<path:path>')
-### def serve_html(path):
-###     return send_from_directory(HTML_DIRECTORY, path)
 
 
 from flask import Flask, send_from_directory
@@ -51,6 +48,16 @@ flask_app = Flask(__name__)
 albums = Albums(CONF)
 img_sender = ImageSender(CONF, flask_app)
 clients = Clients(CONF, flask_app, albums, img_sender)
+
+@flask_app.route('/')
+def serve_html():
+    return send_from_directory('html', 'index.html')
+@flask_app.route('/css/<path:p>')
+def serve_css(p):
+    return send_from_directory('html/css', p)
+@flask_app.route('/js/<path:p>')
+def serve_js(p):
+    return send_from_directory('html/js', p)
 
 if __name__ == '__main__':
     flask_app.run(debug=True, host="0.0.0.0")

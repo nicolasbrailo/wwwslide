@@ -39,10 +39,13 @@ class Clients:
         flask_app.add_url_rule("/client_cfg//target_size/no_resize", "client_cfg_target_size_no_resize", self.client_cfg_target_size_no_resize)
         flask_app.add_url_rule("/client_cfg/<client_id>/target_size/no_resize", "client_cfg_target_size_no_resize", self.client_cfg_target_size_no_resize)
 
+        flask_app.add_url_rule("/get_image", "get_image", self.get_next_img)
         flask_app.add_url_rule("/get_next_img", "get_next_img", self.get_next_img)
         flask_app.add_url_rule("/get_next_img/<client_id>", "get_next_img", self.get_next_img)
         flask_app.add_url_rule("/get_prev_img", "get_prev_img", self.get_prev_img)
         flask_app.add_url_rule("/get_prev_img/<client_id>", "get_prev_img", self.get_prev_img)
+        flask_app.add_url_rule("/get_current_img_meta", "get_current_img_meta", self.get_current_img_meta)
+        flask_app.add_url_rule("/get_current_img_meta/<client_id>", "get_current_img_meta", self.get_current_img_meta)
         flask_app.add_url_rule("/reset_album", "reset_album", self.reset_album)
         flask_app.add_url_rule("/reset_album/<client_id>", "reset_album", self.reset_album)
         flask_app.add_url_rule("/show_full_album@<path:imghash>", "show_full_album", self.show_full_album)
@@ -134,7 +137,7 @@ class Clients:
         client_id = self._guess_or_register_client(client_id)
         cfg = self.known_clients[client_id]
         del cfg["imgs_queue"][cfg["imgs_queue_idx"]+1:]
-        return "OK"
+        return self.get_next_img(client_id)
 
 
     def show_full_album(self, client_id=None, imghash=None):
@@ -151,7 +154,7 @@ class Clients:
         # No remove if history bigger than max; user requested full album
         new_imgs = self.albums.random_select_pictures(cfg["active_album"], None)
         cfg["imgs_queue"].extend(new_imgs)
-        return "OK"
+        return f"Loaded {len(new_imgs)} images"
 
 
     def get_next_img(self, client_id=None):
@@ -184,6 +187,17 @@ class Clients:
 
         cfg["imgs_queue_idx"] -= 1
         return self._send_img(client_id, cfg["imgs_queue"][cfg["imgs_queue_idx"]])
+
+
+    def get_current_img_meta(self, client_id=None):
+        client_id = self._guess_or_register_client(client_id)
+        cfg = self.known_clients[client_id]
+
+        if len(cfg["imgs_queue"]) == 0:
+            return json.dumps(None)
+
+        img = cfg["imgs_queue"][cfg["imgs_queue_idx"]]
+        return self.img_sender.get_image_meta(img)
 
 
     def _send_img(self, client_id, img):

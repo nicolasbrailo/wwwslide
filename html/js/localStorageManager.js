@@ -5,7 +5,6 @@ class LocalStorageManager {
     this.max_cache_age_secs = MAX_CACHE_AGE_SECS;
     this.cache_idx = this.get('cache_idx', {});
     if (typeof(this.cache_idx) != typeof({})) {
-      // TODO show in UI
       console.error("Can't read local storage, will clear cache");
       this.cache_idx = {};
       this.save('cache_idx', this.cache_idx);

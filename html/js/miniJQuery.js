@@ -30,6 +30,7 @@ function mDeferred() {
 function mAjax(cfg) {
   const req = new XMLHttpRequest();
 
+  if (!cfg.type) cfg.type = "get";
   if (!cfg.cache && (cfg.type.toLowerCase() == "get" || cfg.type.toLowerCase() == "head")) {
     const t = Date.now();
     cfg.url = (cfg.url.search('\\?') == -1) ? `${cfg.url}?_=${t}` : `${cfg.url}&_=${t}`;
@@ -49,18 +50,22 @@ function mAjax(cfg) {
           }
         }
         // console.log(cfg.url, req, resp)
-        cfg.success(resp);
+        if (cfg.success) {
+          cfg.success(resp);
+        }
       } else {
-        if (req.status == 0 && req.statusText.length == 0) {
-          cfg.error({
-            status: 0,
-            statusText: "Can't reach server",
-            responseText: "Server unreachable or connection aborted",
-            responseURL: req.responseUrl,
-            request: req,
-          });
-        } else {
-          cfg.error(req);
+        if (cfg.error) {
+          if (req.status == 0 && req.statusText.length == 0) {
+            cfg.error({
+              status: 0,
+              statusText: "Can't reach server",
+              responseText: "Server unreachable or connection aborted",
+              responseURL: req.responseUrl,
+              request: req,
+            });
+          } else {
+            cfg.error(req);
+          }
         }
       }
     }

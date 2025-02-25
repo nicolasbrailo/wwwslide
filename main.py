@@ -1,3 +1,9 @@
+# TODO:
+## * Clean up cache
+## * Remove clients after timeout
+## * Test if session state is separated between clients
+## * If a client is unknown but requests an id, assign the id
+
 ## import threading
 ## import time
 ## from datetime import datetime, timedelta

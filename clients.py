@@ -26,6 +26,7 @@ class Clients:
         self.known_clients = {}
 
         flask_app.add_url_rule("/client_ls", "client_ls", self.client_ls)
+        flask_app.add_url_rule("/client_ls_txt", "client_ls_txt", self.client_ls_txt)
         flask_app.add_url_rule("/client_register", "client_register", self.client_register)
         flask_app.add_url_rule("/client_info", "client_info", self.client_info)
         flask_app.add_url_rule("/client_info/<client_id>", "client_info", self.client_info)
@@ -48,6 +49,8 @@ class Clients:
         flask_app.add_url_rule("/get_current_img_meta/<client_id>", "get_current_img_meta", self.get_current_img_meta)
         flask_app.add_url_rule("/reset_album", "reset_album", self.reset_album)
         flask_app.add_url_rule("/reset_album/<client_id>", "reset_album", self.reset_album)
+        flask_app.add_url_rule("/show_full_album", "show_full_album", self.show_full_album)
+        flask_app.add_url_rule("/show_full_album/<client_id>", "show_full_album", self.show_full_album)
         flask_app.add_url_rule("/show_full_album@<path:imghash>", "show_full_album", self.show_full_album)
         flask_app.add_url_rule("/show_full_album/<client_id>@<path:imghash>", "show_full_album", self.show_full_album)
 
@@ -72,7 +75,10 @@ class Clients:
 
 
     def client_ls(self):
-        return json.dumps(self.known_clients)
+        return json.dumps(self.known_clients, indent=4)
+
+    def client_ls_txt(self):
+        return '<pre>' + json.dumps(self.known_clients, indent=4)
 
 
     def client_register(self):
@@ -94,9 +100,9 @@ class Clients:
     def client_cfg_embed_info_qr_code(self, client_id=None, v=None):
         if v is None or v.lower() in ["default"]:
             v = self.embed_info_qr_code_default
-        elif v.lower() in [0, "0", "no", "false"]:
+        elif v.lower() in [0, "0", "no", "off", "false"]:
             v = False
-        elif v.lower() in [1, "1", "yes", "true"]:
+        elif v.lower() in [1, "1", "yes", "on", "true"]:
             v = True
         else:
             return f"Invalid bool-like {v}", 400
@@ -141,14 +147,20 @@ class Clients:
 
 
     def show_full_album(self, client_id=None, imghash=None):
-        if imghash is None:
-            raise ValueError("Invalid image or album hash")
-        imgpath = img_path_from_hash(imghash)
-        if not imgpath.startswith(self.img_directory):
-            raise ValueError(f"Invalid image path {imgpath}")
         client_id = self._guess_or_register_client(client_id)
         cfg = self.known_clients[client_id]
-        self.reset_album(client_id)
+
+        if imghash is not None:
+            imgpath = img_path_from_hash(imghash)
+        else:
+            imgpath = cfg["imgs_queue"][cfg["imgs_queue_idx"]]
+
+        if not imgpath.startswith(self.img_directory):
+            raise ValueError(f"Invalid image path {imgpath}")
+
+        # Remove images after current one
+        del cfg["imgs_queue"][cfg["imgs_queue_idx"]+1:]
+
         album = get_img_meta(self.img_directory, imgpath, None)['albumpath']
         cfg["active_album"] = album
         # No remove if history bigger than max; user requested full album

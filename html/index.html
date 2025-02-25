@@ -19,8 +19,11 @@
     <div id="app_info"></div>
     <div id="image_info"></div>
     <div id="app_config">
-      <button type="checkbox"> Embed QR code<br/>
-      Target size: <input type="text" id="target_width"/> x <input type="text" id="target_height"/>
+      <p><label><input type="checkbox" id="app_config_qr">Embed QR</label></p>
+      <p>Target size: <label><input type="text" id="app_config_target_width"></label> x <label><input type="text" id="app_config_target_height"> px</label></p>
+      <button id="app_config_save">Save</button>
+      <button id="app_config_load_this_album">Show full album</button>
+      <button id="app_config_debug_clients">Debug</button>
     </div>
     <img id="image_holder"/>
 

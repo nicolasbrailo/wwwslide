@@ -13,9 +13,13 @@ class LocalStorageManager {
   }
 
   get(key, default_val) {
+    const item = localStorage.getItem(key);
+    if (item === null) {
+      return default_val;
+    }
+
     try {
-      const v = JSON.parse(localStorage.getItem(key));
-      return v? v : default_val;
+      return JSON.parse(item);
     } catch (e) {
       return default_val;
     }

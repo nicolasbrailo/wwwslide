@@ -38,7 +38,7 @@ class ImgProvider{
       success: id => {
           this.client_id = id;
           // This is racy, but for LAN should be fine
-          this.setEmbedQr(this.app_cfg.get('sholdEmbedQr', true));
+          this.setEmbedQr(this.app_cfg.get('shouldEmbedQr', true));
           this.setTargetSize(this.app_cfg.get('target_size_w', 1024),
                              this.app_cfg.get('target_size_h', 768));
           if (this.when_ready_cb) this.when_ready_cb();
@@ -96,7 +96,7 @@ class ImgProvider{
 
   setEmbedQr(should_embed) {
     if (!this.client_id) return null;
-    this.app_cfg.save('sholdEmbedQr', should_embed);
+    this.app_cfg.save('shouldEmbedQr', should_embed);
     mAjax({url: `/client_cfg/${this.client_id}/embed_info_qr_code/${should_embed}`});
   }
 
@@ -215,6 +215,8 @@ class App {
 
   _showMetadata() {
     m$('image_info').style.display = 'none';
+    if (!m$('app_config_show_meta').checked) return;
+
     this.imgProvider.getCurrentImgMeta().then(meta => {
       const loc = meta["reverse_geo"]? '<br/>' + meta["reverse_geo"]["revgeo"] : ''
       const render = `${meta["albumname"]} @ ${meta["EXIF DateTimeOriginal"]}<br/>
@@ -272,8 +274,8 @@ class AppUI {
   }
 };
 
-window.app_cfg_db = new LocalStorageManager();
-window.imgProvider = new ImgProvider(app_cfg_db);
+window.app_cfg = new LocalStorageManager();
+window.imgProvider = new ImgProvider(app_cfg);
 window.app = new App(imgProvider);
 window.app_ui = new AppUI(app);
 
@@ -293,10 +295,13 @@ function toggleConfig() {
 }
 
 function saveConfig() {
+  app_cfg.save('showImgMeta', m$('app_config_show_meta').checked);
+  m$('image_info').style.display = m$('app_config_show_meta').checked? "block" : "none";
   imgProvider.setEmbedQr((m$('app_config_qr').checked));
   imgProvider.setTargetSize(
               parseInt(m$('app_config_target_width').value),
               parseInt(m$('app_config_target_height').value));
+  m$('app_config').style.display = "none";
 }
 
 m$('app_ctrl_next').addEventListener('click', app.showNext);
@@ -307,4 +312,11 @@ m$('app_ctrl_reload').addEventListener('click', app.selectNewAlbum);
 m$('app_config_save').addEventListener('click', saveConfig);
 m$('app_config_load_this_album').addEventListener('click', imgProvider.loadFullAlbum);
 m$('app_config_debug_clients').addEventListener('click', () => { window.open("/client_ls_txt", "_blank") });
+
+console.log(app_cfg.get('showImgMeta', true));
+console.log(app_cfg.get('shouldEmbedQr', true));
+m$('app_config_show_meta').checked = app_cfg.get('showImgMeta', true);
+m$('app_config_qr').checked = app_cfg.get('shouldEmbedQr', true);
+m$('app_config_target_width').value = app_cfg.get('target_size_w', 1024);
+m$('app_config_target_height').value = app_cfg.get('target_size_h', 768);
 

@@ -313,8 +313,6 @@ m$('app_config_save').addEventListener('click', saveConfig);
 m$('app_config_load_this_album').addEventListener('click', imgProvider.loadFullAlbum);
 m$('app_config_debug_clients').addEventListener('click', () => { window.open("/client_ls_txt", "_blank") });
 
-console.log(app_cfg.get('showImgMeta', true));
-console.log(app_cfg.get('shouldEmbedQr', true));
 m$('app_config_show_meta').checked = app_cfg.get('showImgMeta', true);
 m$('app_config_qr').checked = app_cfg.get('shouldEmbedQr', true);
 m$('app_config_target_width').value = app_cfg.get('target_size_w', 1024);

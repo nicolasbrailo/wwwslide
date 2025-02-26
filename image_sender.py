@@ -1,9 +1,29 @@
-from img_meta import get_img_meta
+from datetime import datetime, timedelta
 from flask import send_file
+from img_meta import get_img_meta
 from PIL import Image
 import os
 import qrcode
+import time
 import urllib.parse
+
+def delete_old_files(directory, threshold_days=1):
+    cnt = 0
+    threshold_seconds = threshold_days * 86400
+    for root, _, files in os.walk(directory):
+        for file in files:
+            file_path = os.path.join(root, file)
+            try:
+                file_mtime = os.stat(file_path).st_mtime
+                if time.time() - file_mtime > threshold_seconds:
+                    os.remove(file_path)
+                    cnt = cnt + 1
+                    print(f"Deleted: {file_path}")
+            except Exception as e:
+                print(f"Error removing {file_path}: {e}")
+
+    return cnt
+
 
 def mk_image_hash(cfg, path):
     return cfg["service_url"] + '/img/qr/' + urllib.parse.quote_plus(path)
@@ -110,5 +130,8 @@ class ImageSender:
         if not imgpath.startswith(self.cfg["img_directory"]):
             raise ValueError(f"Invalid image path {path}")
         return send_file(imgpath)
+
+    def cleanup_cache(self):
+        return delete_old_files(self.cfg["img_cache_directory"], 1)
 
 

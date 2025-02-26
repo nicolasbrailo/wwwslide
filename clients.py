@@ -24,9 +24,11 @@ class Clients:
         self.albums = albums
         self.img_sender = img_sender
         self.known_clients = {}
+        self.client_stale_threshold_secs = 30 * 60; # After 30 mins we consider clients stale
 
         flask_app.add_url_rule("/client_ls", "client_ls", self.client_ls)
         flask_app.add_url_rule("/client_ls_txt", "client_ls_txt", self.client_ls_txt)
+        flask_app.add_url_rule("/client_ls_stale", "client_ls_stale", self.client_ls_stale)
         flask_app.add_url_rule("/client_register", "client_register", self.client_register)
         flask_app.add_url_rule("/client_info", "client_info", self.client_info)
         flask_app.add_url_rule("/client_info/<client_id>", "client_info", self.client_info)
@@ -78,6 +80,17 @@ class Clients:
     def client_ls_txt(self):
         return '<pre>' + json.dumps(self.known_clients, indent=4)
 
+    def _get_stale_clients(self):
+        return [
+            client_id for client_id,cfg in self.known_clients.items()
+            if time.time() - cfg["last_seen"] > self.client_stale_threshold_secs
+        ]
+    def client_ls_stale(self):
+        return json.dumps(self._get_stale_clients())
+    def cleanup_stale_clients(self):
+        for client_id in self._get_stale_clients():
+            print(f"Stale client {client_id}, cleanup")
+            del self.known_clients[client_id]
 
     def client_register(self):
         return self._client_register_impl(None)

@@ -47,18 +47,21 @@ def make_qr(cfg, path, w, h):
     qr_img = qr_img.resize((w, h))
     return qr_img
 
-def _maybe_mogrify_image(cfg, client_cfg, path):
-    if not path.startswith(cfg["img_directory"]):
-        raise ValueError(f"Invalid image path {path}")
+def _maybe_mogrify_image(cfg, client_cfg, img_path):
+    if not img_path.startswith(cfg["img_directory"]):
+        raise ValueError(f"Invalid image path {img_path}")
 
     if client_cfg["target_width"] is None != client_cfg["target_height"] is None:
         raise ValueError(f"Client must set both target_width and target_height")
 
     if client_cfg["target_width"] is None and client_cfg["target_height"] is None and not client_cfg['embed_info_qr_code']:
         # Client wants raw image
-        return path
+        return img_path
 
-    img = Image.open(path)
+    if len(cfg["img_cache_directory"]) < 2 or not os.path.exists(cfg["img_cache_directory"]) or not os.path.isdir(cfg["img_cache_directory"]):
+        raise ValueError(f"Cache directory {cfg['img_cache_directory']} doesn't exist or isn't a directory")
+
+    img = Image.open(img_path)
     width, height = img.size
     if client_cfg["target_width"] is None:
         resize_needed = False
@@ -66,22 +69,26 @@ def _maybe_mogrify_image(cfg, client_cfg, path):
         resize_needed = width > client_cfg["target_width"] or height > client_cfg["target_height"]
     if not resize_needed and not client_cfg['embed_info_qr_code']:
         # No resize or QR needed
-        return path
+        return img_path
 
     # If we're here, we need to either resize or add a QR code
 
     # Remove the base path of the image to be resized, so that we can cache it per album
-    album_and_fname = path[len(cfg["img_directory"]):]
+    album_and_fname = img_path[len(cfg["img_directory"]):]
+    if album_and_fname[0] == '/':
+        album_and_fname = album_and_fname[1:]
     qr_cache_name = "qr" if client_cfg['embed_info_qr_code'] else "noqr"
-    cached_img_path = os.path.join(cfg["img_cache_directory"],
-                               f"{client_cfg['target_width']}x{client_cfg['target_height']}_{qr_cache_name}",
-                               album_and_fname)
+    cache_settings = f"{client_cfg['target_width']}x{client_cfg['target_height']}_{qr_cache_name}"
+    cached_img_path = os.path.join(cfg["img_cache_directory"], cache_settings, album_and_fname)
+
     if os.path.exists(cached_img_path):
         return cached_img_path
 
-    if not os.path.exists(cfg["img_cache_directory"]) or not os.path.isdir(cfg["img_cache_directory"]):
-        raise ValueError(f"Cache directory {cfg["img_cache_directory"]} doesn't exist or isn't a directory")
-    os.makedirs(os.path.dirname(cached_img_path), exist_ok=True)
+    cache_path = os.path.dirname(cached_img_path)
+    try:
+        os.makedirs(cache_path, exist_ok=True)
+    except Exception as e:
+        raise ValueError(f"Failed to mogrify '{img_path}': can't create cache dir at {cache_path} for mogrified image {cached_img_path}: {e}")
 
     if resize_needed:
         img.thumbnail((client_cfg["target_width"], client_cfg["target_height"]))
@@ -90,7 +97,7 @@ def _maybe_mogrify_image(cfg, client_cfg, path):
        QR_PCT_SZ = 0.1
        width, height = img.size
        qrsz = max(int(QR_PCT_SZ * width), int(QR_PCT_SZ * height))
-       qr = make_qr(cfg, path, qrsz, qrsz)
+       qr = make_qr(cfg, img_path, qrsz, qrsz)
        # Paste the QR code onto the base image as a watermark
        # You can position it as needed (here it's at the bottom-right corner)
        position = (img.width - qr.width - 10, img.height - qr.height - 10)

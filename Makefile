@@ -18,4 +18,7 @@ install_service:
 logs:
 	journalctl --follow --unit wwwslide
 
+restart_svc:
+	systemctl restart wwwslide
+	journalctl --follow --unit wwwslide
 

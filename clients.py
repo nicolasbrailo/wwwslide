@@ -55,23 +55,21 @@ class Clients:
         flask_app.add_url_rule("/show_full_album/<client_id>@<path:imghash>", "show_full_album", self.show_full_album)
 
 
-    def _guess_client(self, client_id=None):
+    def _guess_or_register_client(self, client_id=None):
         if client_id is not None:
             if client_id in self.known_clients:
                 return self.known_clients[client_id]["client_id"]
             else:
-                return None
+                # Register a new client with requested id
+                return self._client_register_impl(client_id)
+
+        # client id not specified, see if we know client by ip
         for client_id,cfg in self.known_clients.items():
             if cfg["ip"] == request.remote_addr:
                 return cfg["client_id"]
-        return None
 
-
-    def _guess_or_register_client(self, client_id=None):
-        client_id = self._guess_client(client_id)
-        if client_id is None:
-            client_id = self.client_register()
-        return client_id
+        # Unknown client, register a new one and assign id
+        return self.client_register()
 
 
     def client_ls(self):
@@ -82,10 +80,14 @@ class Clients:
 
 
     def client_register(self):
-        client_id = f"client_{int(time.time())}{len(self.known_clients)}"
-        self.known_clients[client_id] = {
+        return self._client_register_impl(None)
+
+    def _client_register_impl(self, new_id=None):
+        if new_id is None:
+            new_id = f"client_{int(time.time())}{len(self.known_clients)}"
+        self.known_clients[new_id] = {
                 "ip": request.remote_addr,
-                "client_id": client_id,
+                "client_id": new_id,
                 "embed_info_qr_code": self.embed_info_qr_code_default,
                 "target_width": int(self.default_target_width),
                 "target_height": int(self.default_target_height),
@@ -94,7 +96,7 @@ class Clients:
                 "imgs_queue_idx": 0,
                 "last_seen": time.time(),
             }
-        return client_id
+        return new_id
 
 
     def client_cfg_embed_info_qr_code(self, client_id=None, v=None):
@@ -133,7 +135,7 @@ class Clients:
 
 
     def client_info(self, client_id=None):
-        client_id = self._guess_client(client_id)
+        client_id = self._guess_or_register_client(client_id)
         if client_id is not None:
             return json.dumps(self.known_clients[client_id])
         return json.dumps(None)

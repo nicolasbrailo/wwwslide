@@ -29,4 +29,7 @@ The server is meant to be used in a LAN only; it uses a development web server a
 * Add controller support to select album, or year
 * Add metadata scanning to create slideshows per category (eg by geolocation)
 * Add face scanning to create slideshow per person
+* Add option to sync state of all (or a subset of?) clients: every client shares the same image queue (to display same album in all clients)
+* Make QR landing page smarter (enable it to manage clients)
+
 

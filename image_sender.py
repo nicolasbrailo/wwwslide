@@ -24,6 +24,12 @@ def delete_old_files(directory, threshold_days=1):
 
     return cnt
 
+def _mkdirs(cached_img_path, img_path):
+    cache_path = os.path.dirname(cached_img_path)
+    try:
+        os.makedirs(cache_path, exist_ok=True)
+    except Exception as e:
+        raise ValueError(f"Failed to mogrify '{img_path}': can't create cache dir at {cache_path} for mogrified image {cached_img_path}: {e}")
 
 def mk_image_hash(cfg, path):
     return cfg["service_url"] + '/img/qr/' + urllib.parse.quote_plus(path)
@@ -31,7 +37,16 @@ def mk_image_hash(cfg, path):
 def img_path_from_hash(imghash):
     return '/' + urllib.parse.unquote_plus(imghash)
 
-def make_qr(cfg, path, w, h):
+def _get_album_and_fname(cfg, img_path):
+    album_and_fname = img_path[len(cfg["img_directory"]):]
+    if album_and_fname[0] == '/':
+        album_and_fname = album_and_fname[1:]
+    return album_and_fname
+
+def make_qr(cfg, path, img=None):
+    if img is None:
+        img = Image.open(path)
+
     qr = qrcode.QRCode(
         version=1,  # Controls the size of the QR code (1 is 21x21 matrix)
         error_correction=qrcode.constants.ERROR_CORRECT_L,  # About 7% error correction
@@ -41,10 +56,13 @@ def make_qr(cfg, path, w, h):
 
     qr.add_data(mk_image_hash(cfg, path))
     qr.make(fit=True)
-    qr_img = qr.make_image(fill="black", back_color="white")
 
-    # Adjust the size as needed
-    qr_img = qr_img.resize((w, h))
+    QR_PCT_SZ = 0.1
+    w, h = img.size
+    qrsz = max(int(QR_PCT_SZ * w), int(QR_PCT_SZ * h))
+
+    qr_img = qr.make_image(fill="black", back_color="white")
+    qr_img = qr_img.resize((qrsz, qrsz))
     return qr_img
 
 def _maybe_mogrify_image(cfg, client_cfg, img_path):
@@ -74,9 +92,7 @@ def _maybe_mogrify_image(cfg, client_cfg, img_path):
     # If we're here, we need to either resize or add a QR code
 
     # Remove the base path of the image to be resized, so that we can cache it per album
-    album_and_fname = img_path[len(cfg["img_directory"]):]
-    if album_and_fname[0] == '/':
-        album_and_fname = album_and_fname[1:]
+    album_and_fname = _get_album_and_fname(cfg, img_path)
     qr_cache_name = "qr" if client_cfg['embed_info_qr_code'] else "noqr"
     cache_settings = f"{client_cfg['target_width']}x{client_cfg['target_height']}_{qr_cache_name}"
     cached_img_path = os.path.join(cfg["img_cache_directory"], cache_settings, album_and_fname)
@@ -84,20 +100,13 @@ def _maybe_mogrify_image(cfg, client_cfg, img_path):
     if os.path.exists(cached_img_path):
         return cached_img_path
 
-    cache_path = os.path.dirname(cached_img_path)
-    try:
-        os.makedirs(cache_path, exist_ok=True)
-    except Exception as e:
-        raise ValueError(f"Failed to mogrify '{img_path}': can't create cache dir at {cache_path} for mogrified image {cached_img_path}: {e}")
+    _mkdirs(cached_img_path, img_path)
 
     if resize_needed:
         img.thumbnail((client_cfg["target_width"], client_cfg["target_height"]))
 
     if client_cfg['embed_info_qr_code']:
-       QR_PCT_SZ = 0.1
-       width, height = img.size
-       qrsz = max(int(QR_PCT_SZ * width), int(QR_PCT_SZ * height))
-       qr = make_qr(cfg, img_path, qrsz, qrsz)
+       qr = make_qr(cfg, img_path, img)
        # Paste the QR code onto the base image as a watermark
        # You can position it as needed (here it's at the bottom-right corner)
        position = (img.width - qr.width - 10, img.height - qr.height - 10)
@@ -142,6 +151,16 @@ class ImageSender:
             raise ValueError(f"Invalid image path {imgpath}")
 
         return send_file(imgpath)
+
+    def img_qr_only(self, imgpath):
+        album_and_fname = _get_album_and_fname(self.cfg, imgpath)
+        cached_qr_path = os.path.join(self.cfg["img_cache_directory"], "qronly", album_and_fname)
+        if os.path.exists(cached_qr_path):
+            return send_file(cached_qr_path)
+        _mkdirs(cached_qr_path, imgpath)
+        qr = make_qr(self.cfg, imgpath)
+        qr.save(cached_qr_path)
+        return send_file(cached_qr_path)
 
     def cleanup_cache(self):
         return delete_old_files(self.cfg["img_cache_directory"], 1)

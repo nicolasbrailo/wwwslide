@@ -29,6 +29,7 @@ class ImgProvider{
     this.setTargetSize = this.setTargetSize.bind(this);
     this.loadFullAlbum = this.loadFullAlbum.bind(this);
     this.openRawImage = this.openRawImage.bind(this);
+    this.openQr = this.openQr.bind(this);
 
     this.app_cfg = app_cfg;
     this.client_id = null;
@@ -121,6 +122,11 @@ class ImgProvider{
     if (!this.client_id) return null;
     window.open(`/get_current_img_raw/${this.client_id}`, "_blank")
   };
+
+  openQr() {
+    if (!this.client_id) return null;
+    window.open(`/get_current_img_qr/${this.client_id}`, "_blank")
+  }
 };
 
 
@@ -322,10 +328,12 @@ m$('app_ctrl_next').addEventListener('click', app.showNext);
 m$('app_ctrl_prev').addEventListener('click', app.showPrev);
 m$('app_ctrl_toggle_slide').addEventListener('click', toggleSlideshow);
 m$('app_ctrl_toggle_ctrl').addEventListener('click', toggleCtrl);
+m$('app_ctrl_cfg').addEventListener('click', toggleConfig);
 m$('app_ctrl_reload').addEventListener('click', app.selectNewAlbum);
 m$('app_config_save').addEventListener('click', saveConfig);
 m$('app_config_load_this_album').addEventListener('click', imgProvider.loadFullAlbum);
 m$('app_config_debug_clients').addEventListener('click', () => { window.open("/client_ls_txt", "_blank") });
+m$('app_config_load_qr').addEventListener('click', imgProvider.openQr);
 m$('app_ctrl_open_img').addEventListener('click', imgProvider.openRawImage);
 
 m$('app_config_show_meta').checked = app_cfg.get('showImgMeta', true);

@@ -49,6 +49,8 @@ class Clients:
         flask_app.add_url_rule("/get_prev_img/<client_id>", "get_prev_img", self.get_prev_img)
         flask_app.add_url_rule("/get_current_img_meta", "get_current_img_meta", self.get_current_img_meta)
         flask_app.add_url_rule("/get_current_img_meta/<client_id>", "get_current_img_meta", self.get_current_img_meta)
+        flask_app.add_url_rule("/get_current_img_raw", "get_current_img_raw", self.get_current_img_raw)
+        flask_app.add_url_rule("/get_current_img_raw/<client_id>", "get_current_img_raw", self.get_current_img_raw)
         flask_app.add_url_rule("/reset_album", "reset_album", self.reset_album)
         flask_app.add_url_rule("/reset_album/<client_id>", "reset_album", self.reset_album)
         flask_app.add_url_rule("/show_full_album", "show_full_album", self.show_full_album)
@@ -225,6 +227,17 @@ class Clients:
 
         img = cfg["imgs_queue"][cfg["imgs_queue_idx"]]
         return self.img_sender.get_image_meta(img)
+
+
+    def get_current_img_raw(self, client_id=None):
+        client_id = self._guess_or_register_client(client_id)
+        cfg = self.known_clients[client_id]
+
+        if len(cfg["imgs_queue"]) == 0:
+            return json.dumps(None)
+
+        img = cfg["imgs_queue"][cfg["imgs_queue_idx"]]
+        return self.img_sender.img_raw(img)
 
 
     def _send_img(self, client_id, img):

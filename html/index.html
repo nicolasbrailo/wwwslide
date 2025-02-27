@@ -6,14 +6,20 @@
     <link rel="icon" href="favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="css/magick.min.css">
     <link rel="stylesheet" href="css/style.css">
-    <title>pps</title>
+    <title>wwwslider</title>
 </head>
 <body>
     <div id="app_ctrl">
-      <button id="app_ctrl_reload">⟳</button>
-      <button id="app_ctrl_cfg">⚙</button>
+      <div id="app_ctrl_expand">
+        <button id="app_ctrl_toggle_ctrl">…</button>
+      </div>
+      <div id="app_ctrl_more" style="display: none">
+        <button id="app_ctrl_reload">⟳</button>
+        <button id="app_ctrl_cfg">⚙</button>
+        <button id="app_ctrl_open_img">⤴</button>
+      </div>
       <button id="app_ctrl_prev">⏪</button>
-      <button id="app_ctrl_toggle">⏯</button>
+      <button id="app_ctrl_toggle_slide">⏯</button>
       <button id="app_ctrl_next">⏩</button>
     </div>
     <div id="app_info"></div>

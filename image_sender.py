@@ -132,10 +132,15 @@ class ImageSender:
         imgpath = img_path_from_hash(imghash)
         return get_img_meta(self.cfg["img_directory"], imgpath, self.cfg["rev_geo_apikey"])
 
-    def img_raw(self, imghash):
-        imgpath = img_path_from_hash(imghash)
+    def img_raw(self, imgpath):
         if not imgpath.startswith(self.cfg["img_directory"]):
-            raise ValueError(f"Invalid image path {path}")
+            # This is probably not a path, but a hash to a path
+            imgpath = img_path_from_hash(imgpath)
+
+        if not imgpath.startswith(self.cfg["img_directory"]):
+            # Or maybe it was just garbage...
+            raise ValueError(f"Invalid image path {imgpath}")
+
         return send_file(imgpath)
 
     def cleanup_cache(self):

@@ -28,6 +28,7 @@ class ImgProvider{
     this.setEmbedQr = this.setEmbedQr.bind(this);
     this.setTargetSize = this.setTargetSize.bind(this);
     this.loadFullAlbum = this.loadFullAlbum.bind(this);
+    this.openRawImage = this.openRawImage.bind(this);
 
     this.app_cfg = app_cfg;
     this.client_id = null;
@@ -115,6 +116,11 @@ class ImgProvider{
       success: console.log,
     });
   }
+
+  openRawImage() {
+    if (!this.client_id) return null;
+    window.open(`/get_current_img_raw/${this.client_id}`, "_blank")
+  };
 };
 
 
@@ -267,9 +273,9 @@ class AppUI {
 
   styleSlideshowBtn(slideshowEnabled) {
     if (slideshowEnabled) {
-      m$('app_ctrl_toggle').classList.add('enabled');
+      m$('app_ctrl_toggle_slide').classList.add('enabled');
     } else {
-      m$('app_ctrl_toggle').classList.remove('enabled');
+      m$('app_ctrl_toggle_slide').classList.remove('enabled');
     }
   }
 };
@@ -304,14 +310,23 @@ function saveConfig() {
   m$('app_config').style.display = "none";
 }
 
+function toggleCtrl() {
+  if (m$('app_ctrl_more').style.display == "none") {
+    m$('app_ctrl_more').style.display = "inline";
+  } else {
+    m$('app_ctrl_more').style.display = "none";
+  }
+}
+
 m$('app_ctrl_next').addEventListener('click', app.showNext);
 m$('app_ctrl_prev').addEventListener('click', app.showPrev);
-m$('app_ctrl_toggle').addEventListener('click', toggleSlideshow);
-m$('app_ctrl_cfg').addEventListener('click', toggleConfig);
+m$('app_ctrl_toggle_slide').addEventListener('click', toggleSlideshow);
+m$('app_ctrl_toggle_ctrl').addEventListener('click', toggleCtrl);
 m$('app_ctrl_reload').addEventListener('click', app.selectNewAlbum);
 m$('app_config_save').addEventListener('click', saveConfig);
 m$('app_config_load_this_album').addEventListener('click', imgProvider.loadFullAlbum);
 m$('app_config_debug_clients').addEventListener('click', () => { window.open("/client_ls_txt", "_blank") });
+m$('app_ctrl_open_img').addEventListener('click', imgProvider.openRawImage);
 
 m$('app_config_show_meta').checked = app_cfg.get('showImgMeta', true);
 m$('app_config_qr').checked = app_cfg.get('shouldEmbedQr', true);

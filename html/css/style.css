@@ -89,19 +89,24 @@ html, body {
   border: 1px solid rgba(0, 0, 0);
   border-radius: 10px;
 
-  padding: 3px;
+  padding: 1px;
   margin-top: 0;
   background-color: rgba(255, 255, 255, 0.6);
 
-  width: 6vw;
-  height: 3vw;
-  font-size: 3cqh;
+  width: 3.5vw;
+  height: 2.5vw;
+  font-size: 2.5cqh;
 }
 
 #app_ctrl button.enabled {
   border: 2px black solid !important;
   background-color: rgba(200, 200, 200, 0.4) !important;
 }
+
+#app_ctrl div {
+  display: inline;
+}
+
 
 #app_info {
   position: fixed;

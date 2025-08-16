@@ -29,7 +29,8 @@ class Clients:
         flask_app.add_url_rule("/client_ls", "client_ls", self.client_ls)
         flask_app.add_url_rule("/client_ls_txt", "client_ls_txt", self.client_ls_txt)
         flask_app.add_url_rule("/client_ls_stale", "client_ls_stale", self.client_ls_stale)
-        flask_app.add_url_rule("/client_register", "client_register", self.client_register)
+        flask_app.add_url_rule("/client_register", "client_register", self.client_register, methods=['GET', 'POST'])
+        flask_app.add_url_rule("/client_register/<client_id>", "client_register", self.client_register, methods=['GET', 'POST'])
         flask_app.add_url_rule("/client_info", "client_info", self.client_info)
         flask_app.add_url_rule("/client_info/<client_id>", "client_info", self.client_info)
 
@@ -96,28 +97,54 @@ class Clients:
             print(f"Stale client {client_id}, cleanup")
             del self.known_clients[client_id]
 
-    def client_register(self):
-        return self._client_register_impl(None)
+    def client_register(self, client_id=None):
+        client_id = self._client_register_impl(client_id)
+
+        if request.method == 'GET':
+            return client_id
+
+        try:
+            client_args = request.get_json()
+        except:
+            print(f"Can't understand client request, expected json, got: {request.json}")
+            client_args = {}
+
+        if ('target_width' in client_args) or ('target_height' in client_args):
+            if not (('target_width' in client_args) and ('target_height' in client_args)):
+                print(f"Client requested width or height target, but not both: {request.json}")
+            else:
+                self.client_cfg_target_size(client_id, client_args['target_width'],client_args['target_height'])
+
+        if 'embed_qr' in client_args:
+            self.client_cfg_embed_info_qr_code(client_id, client_args['embed_qr'])
+
+        return client_id
 
     def _client_register_impl(self, new_id=None):
         if new_id is None:
             new_id = f"client_{int(time.time())}{len(self.known_clients)}"
-        self.known_clients[new_id] = {
-                "ip": request.remote_addr,
-                "client_id": new_id,
-                "embed_info_qr_code": self.embed_info_qr_code_default,
-                "target_width": int(self.default_target_width),
-                "target_height": int(self.default_target_height),
-                "active_album": None,
-                "imgs_queue": [],
-                "imgs_queue_idx": 0,
-                "last_seen": time.time(),
-            }
+        if new_id in self.known_clients:
+            print(f"New client requests id {new_id}")
+        else:
+            print(f"New client {new_id} registered")
+            self.known_clients[new_id] = {
+                    "ip": request.remote_addr,
+                    "client_id": new_id,
+                    "embed_info_qr_code": self.embed_info_qr_code_default,
+                    "target_width": int(self.default_target_width),
+                    "target_height": int(self.default_target_height),
+                    "active_album": None,
+                    "imgs_queue": [],
+                    "imgs_queue_idx": 0,
+                    "last_seen": time.time(),
+                }
         return new_id
 
 
     def client_cfg_embed_info_qr_code(self, client_id=None, v=None):
-        if v is None or v.lower() in ["default"]:
+        if type(True) == type(v):
+            pass
+        elif v is None or v.lower() in ["default"]:
             v = self.embed_info_qr_code_default
         elif v.lower() in [0, "0", "no", "off", "false"]:
             v = False
@@ -132,10 +159,11 @@ class Clients:
 
     def client_cfg_target_size(self, client_id=None, width=None, height=None):
         client_id = self._guess_or_register_client(client_id)
-        if width is None or height is None or not width.isdigit() or not height.isdigit():
+        try:
+            self.known_clients[client_id]["target_width"] = int(width)
+            self.known_clients[client_id]["target_height"] = int(height)
+        except TypeError:
             return f"Expected size in WxH pixels format. W and H must be integers"
-        self.known_clients[client_id]["target_width"] = int(width)
-        self.known_clients[client_id]["target_height"] = int(height)
         return self.client_info(client_id)
 
     def client_cfg_target_size_default(self, client_id=None):

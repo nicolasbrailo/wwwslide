@@ -131,6 +131,7 @@ class ImageSender:
         flask_app.add_url_rule("/img/raw/<path:imghash>", "img_raw", self.img_raw)
 
     def send_image(self, client_cfg, path):
+        print("Serve image ", path)
         path = _maybe_mogrify_image(self.cfg, client_cfg, path)
         return send_file(path)
 

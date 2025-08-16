@@ -51,5 +51,6 @@ cleanup_cache_th.daemon = True
 cleanup_cache_th.start()
 
 if __name__ == '__main__':
+    print("Starting wwwslider")
     flask_app.run(debug=True, host="0.0.0.0")
 

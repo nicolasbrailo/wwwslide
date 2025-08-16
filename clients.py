@@ -61,6 +61,9 @@ class Clients:
         flask_app.add_url_rule("/show_full_album@<path:imghash>", "show_full_album", self.show_full_album)
         flask_app.add_url_rule("/show_full_album/<client_id>@<path:imghash>", "show_full_album", self.show_full_album)
 
+    def update_albums(self, albums):
+        self.albums = albums
+
 
     def _guess_or_register_client(self, client_id=None):
         if client_id is not None:

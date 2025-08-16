@@ -11,9 +11,8 @@ with open("config.json", 'r') as fp:
 
 flask_app = Flask(__name__)
 
-albums = Albums(CONF)
 img_sender = ImageSender(CONF, flask_app)
-clients = Clients(CONF, flask_app, albums, img_sender)
+clients = Clients(CONF, flask_app, Albums(CONF), img_sender)
 
 @flask_app.route('/')
 def serve_html():
@@ -41,6 +40,8 @@ def bg_cache_clean():
         print(f'Removed {cnt} old files...')
         # Sleep for a day
         time.sleep(60 * 60 * 24)
+        print(f'Updating album collection...')
+        clients.update_albums(Albums(CONF))
 
 cleanup_clients_th = threading.Thread(target=bg_clients_clean)
 cleanup_clients_th.daemon = True  # Daemon thread will exit when the main program exits

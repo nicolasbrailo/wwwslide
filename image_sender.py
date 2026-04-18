@@ -34,6 +34,9 @@ def _mkdirs(cached_img_path, img_path):
 def mk_image_hash(cfg, path):
     return cfg["service_url"] + '/img/qr/' + urllib.parse.quote_plus(path)
 
+def mk_image_hash_raw(cfg, path):
+    return cfg["service_url"] + '/img/raw/' + urllib.parse.quote_plus(path)
+
 def img_path_from_hash(imghash):
     return '/' + urllib.parse.unquote_plus(imghash)
 
@@ -128,7 +131,7 @@ class ImageSender:
             raise ValueError(f"Cache directory {self.img_cache_directory} doesn't exist or isn't a directory")
 
         flask_app.add_url_rule("/img/qr/<path:imghash>", "img_qr", self.img_qr)
-        flask_app.add_url_rule("/img/raw/<path:imghash>", "img_raw", self.img_raw)
+        flask_app.add_url_rule("/img/raw/<path:imgpath>", "img_raw", self.img_raw)
 
     def send_image(self, client_cfg, path):
         print("Serve image ", path)
@@ -137,7 +140,7 @@ class ImageSender:
 
     def get_image_meta(self, imgpath):
         meta = get_img_meta(self.cfg["img_directory"], imgpath, self.cfg["rev_geo_apikey"])
-        meta["src_url"] = mk_image_hash(imgpath)
+        meta["src_url"] = mk_image_hash_raw(self.cfg, imgpath)
         return meta
 
     def img_qr(self, imghash):
@@ -145,9 +148,11 @@ class ImageSender:
         return get_img_meta(self.cfg["img_directory"], imgpath, self.cfg["rev_geo_apikey"])
 
     def img_raw(self, imgpath):
+        print(imgpath)
         if not imgpath.startswith(self.cfg["img_directory"]):
             # This is probably not a path, but a hash to a path
             imgpath = img_path_from_hash(imgpath)
+        print(imgpath)
 
         if not imgpath.startswith(self.cfg["img_directory"]):
             # Or maybe it was just garbage...

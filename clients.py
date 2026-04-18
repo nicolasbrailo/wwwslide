@@ -50,6 +50,7 @@ class Clients:
         flask_app.add_url_rule("/get_prev_img/<client_id>", "get_prev_img", self.get_prev_img)
         flask_app.add_url_rule("/get_current_img_meta", "get_current_img_meta", self.get_current_img_meta)
         flask_app.add_url_rule("/get_current_img_meta/<client_id>", "get_current_img_meta", self.get_current_img_meta)
+        flask_app.add_url_rule("/get_img_by_path/<path:img_path>", "get_img_by_path", self.get_img_by_path)
         flask_app.add_url_rule("/get_current_img_raw", "get_current_img_raw", self.get_current_img_raw)
         flask_app.add_url_rule("/get_current_img_raw/<client_id>", "get_current_img_raw", self.get_current_img_raw)
         flask_app.add_url_rule("/get_current_img_qr", "get_current_img_qr", self.get_current_img_qr)
@@ -263,6 +264,10 @@ class Clients:
     def get_current_img_meta(self, client_id=None):
         imgpath = self._current_img_path(client_id)
         return self.img_sender.get_image_meta(imgpath)
+
+    def get_img_by_path(self, img_path):
+        img_path = "/" + img_path
+        return self.img_sender.img_raw(img_path)
 
     def get_current_img_raw(self, client_id=None):
         imgpath = self._current_img_path(client_id)

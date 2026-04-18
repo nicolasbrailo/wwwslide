@@ -136,7 +136,9 @@ class ImageSender:
         return send_file(path)
 
     def get_image_meta(self, imgpath):
-        return get_img_meta(self.cfg["img_directory"], imgpath, self.cfg["rev_geo_apikey"])
+        meta = get_img_meta(self.cfg["img_directory"], imgpath, self.cfg["rev_geo_apikey"])
+        meta["src_url"] = mk_image_hash(imgpath)
+        return meta
 
     def img_qr(self, imghash):
         imgpath = img_path_from_hash(imghash)

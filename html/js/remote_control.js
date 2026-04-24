@@ -25,22 +25,48 @@ function esc(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+function isLatLon(v) {
+  return v && typeof v === 'object'
+    && typeof v.lat === 'number' && typeof v.lon === 'number';
+}
+
+function renderValue(k, v) {
+  if (k === 'src_url' && typeof v === 'string') {
+    return `<a href="${esc(v)}" target="_blank" rel="noopener">${esc(v)}</a>`;
+  }
+  if (isLatLon(v)) {
+    const url = `https://www.openstreetmap.org/?mlat=${v.lat}&mlon=${v.lon}&zoom=15`;
+    return `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(v.lat)}, ${esc(v.lon)}</a>`;
+  }
+  if (v !== null && typeof v === 'object') return esc(JSON.stringify(v));
+  return esc(String(v));
+}
+
+function renderKv(obj) {
+  if (!obj || typeof obj !== 'object') return '<em>(none)</em>';
+  const keys = Object.keys(obj);
+  if (keys.length === 0) return '<em>(empty)</em>';
+  const rows = keys.map(k =>
+    `<tr><th>${esc(k)}</th><td>${renderValue(k, obj[k])}</td></tr>`
+  ).join('');
+  return `<table class="kv">${rows}</table>`;
+}
+
 function renderCard(hb) {
   const stateCls = hb.state === 'online' ? 'online' : 'offline';
   const slideshow = hb.slideshow_active === null || hb.slideshow_active === undefined
     ? 'unknown' : (hb.slideshow_active ? 'active' : 'inactive');
-  const displayed = hb.displayed_photo && hb.displayed_photo.filename
-    ? esc(hb.displayed_photo.filename) : '(none reported)';
-  const occ = hb.occupancy ? esc(JSON.stringify(hb.occupancy)) : '(none)';
   return `
     <div class="hb_card" data-hb-id="${esc(hb.id)}">
       <h3>${esc(hb.id)}</h3>
       <div class="hb_state">
         bridge: <span class="${stateCls}">${esc(hb.state)}</span>
         &middot; slideshow: ${esc(slideshow)}
-        &middot; occupancy: ${occ}
       </div>
-      <div class="hb_displayed">displaying: ${displayed}</div>
+      <div class="hb_meta">
+        <div class="hb_meta_col"><h4>displayed photo</h4>${renderKv(hb.displayed_photo)}</div>
+        <div class="hb_meta_col"><h4>occupancy</h4>${renderKv(hb.occupancy)}</div>
+      </div>
       <div class="hb_controls">
         <button data-act="prev">⏪ prev</button>
         <button data-act="next">⏩ next</button>

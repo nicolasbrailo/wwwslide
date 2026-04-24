@@ -8,7 +8,7 @@ run_local:
 	pipenv run python ./main.py
 
 install_deps:
-	pipenv install flask exifread requests pillow qrcode
+	pipenv install flask exifread requests pillow qrcode paho-mqtt
 
 install_service:
 	sudo cp ./wwwslide.service /etc/systemd/system/

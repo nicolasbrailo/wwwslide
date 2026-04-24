@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="css/magick.min.css">
+    <title>wwwslider remote control</title>
+    <style>
+      body { padding: 1em; }
+      .hb_card { border: 1px solid #ccc; border-radius: 8px; padding: 1em; margin-bottom: 1em; }
+      .hb_card h3 { margin: 0 0 .25em 0; }
+      .hb_state { font-size: .9em; color: #666; margin-bottom: .5em; }
+      .hb_state .offline { color: #c00; }
+      .hb_state .online { color: #080; }
+      .hb_displayed { font-size: .85em; color: #444; margin-bottom: .5em; }
+      .hb_controls button { margin-right: .25em; }
+      .hb_config { margin-top: .5em; font-size: .9em; }
+      .hb_config label { margin-right: 1em; }
+      .hb_config input[type=text] { width: 5em; }
+      #status { color: #666; font-size: .85em; }
+    </style>
+</head>
+<body>
+    <h1>Homeboard remote control</h1>
+    <p id="status">Loading…</p>
+    <div id="hb_list"></div>
+
+    <script src="js/miniJQuery.js"></script>
+    <script src="js/remote_control.js"></script>
+</body>
+</html>

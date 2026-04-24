@@ -128,7 +128,7 @@ class ImageSender:
         }
 
         if not os.path.exists(self.cfg["img_cache_directory"]) or not os.path.isdir(self.cfg["img_cache_directory"]):
-            raise ValueError(f"Cache directory {self.img_cache_directory} doesn't exist or isn't a directory")
+            raise ValueError(f"Cache directory {self.cfg['img_cache_directory']} doesn't exist or isn't a directory")
 
         flask_app.add_url_rule("/img/qr/<path:imghash>", "img_qr", self.img_qr)
         flask_app.add_url_rule("/img/raw/<path:imgpath>", "img_raw", self.img_raw)

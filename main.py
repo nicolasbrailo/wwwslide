@@ -2,6 +2,7 @@ from albums import Albums
 from clients import Clients
 from flask import Flask, send_from_directory
 from image_sender import ImageSender
+from remote_control import RemoteControl
 import json
 import threading
 import time
@@ -13,6 +14,7 @@ flask_app = Flask(__name__)
 
 img_sender = ImageSender(CONF, flask_app)
 clients = Clients(CONF, flask_app, Albums(CONF), img_sender)
+remote_control = RemoteControl(CONF, flask_app)
 
 @flask_app.route('/')
 def serve_html():

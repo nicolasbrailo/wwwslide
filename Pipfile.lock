@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "47f41ef6a248f0fcb8322c9e9211b05ac71b494f5d626793e768e5f3569f1f50"
+            "sha256": "749e279a06875786736b47b7b15e7b8b2d1323a75f647bacfa35fea917432d52"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -193,6 +193,10 @@
             "markers": "python_version >= '3.9'",
             "version": "==3.1.3"
         },
+        "homeboard-remote-control": {
+            "editable": true,
+            "file": "HomeboardRemoteControl"
+        },
         "idna": {
             "hashes": [
                 "sha256:585ea8fe5d69b9181ec1afba340451fba6ba764af97026f92a91d4eef164a242",
@@ -317,7 +321,6 @@
                 "sha256:12d6e7511d4137555a3f6ea167ae846af2c7357b10bc6fa4f7c3968fc1723834",
                 "sha256:6db9ba9b34ed5bc6b6e3812718c7e06e2fd7444540df2455d2c51bd58808feee"
             ],
-            "index": "pypi",
             "markers": "python_version >= '3.7'",
             "version": "==2.1.0"
         },

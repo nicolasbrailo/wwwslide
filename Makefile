@@ -8,7 +8,8 @@ run_local:
 	pipenv run python ./main.py
 
 install_deps:
-	pipenv install flask exifread requests pillow qrcode paho-mqtt
+	pipenv install flask exifread requests pillow qrcode
+	pipenv install -e ./HomeboardRemoteControl
 
 install_service:
 	sudo cp ./wwwslide.service /etc/systemd/system/

@@ -10,7 +10,7 @@ exifread = "*"
 requests = "*"
 qrcode = "*"
 schedule = "*"
-paho-mqtt = "*"
+homeboard-remote-control = {file = "HomeboardRemoteControl", editable = true}
 
 [dev-packages]
 

@@ -10,7 +10,7 @@ exifread = "*"
 requests = "*"
 qrcode = "*"
 schedule = "*"
-homeboard-remote-control = {file = "HomeboardRemoteControl", editable = true}
+homeboard-remote-control = {editable = true, path = "./HomeboardRemoteControl"}
 
 [dev-packages]
 

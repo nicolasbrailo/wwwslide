@@ -14,7 +14,8 @@ flask_app = Flask(__name__)
 
 img_sender = ImageSender(CONF, flask_app)
 clients = Clients(CONF, flask_app, Albums(CONF), img_sender)
-remote_control = RemoteControl(CONF, flask_app)
+if CONF.get("homeboard_mqtt"):
+    remote_control = RemoteControl(CONF, flask_app)
 
 @flask_app.route('/')
 def serve_html():

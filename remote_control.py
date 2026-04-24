@@ -16,8 +16,8 @@ class RemoteControl:
 
     def __init__(self, conf, flask_app):
         self._core = RemoteControlCore(
-            conf["mqtt"]["ip"],
-            int(conf["mqtt"]["port"]),
+            conf["homeboard_mqtt"]["ip"],
+            int(conf["homeboard_mqtt"]["port"]),
         )
         self._core.start()
 

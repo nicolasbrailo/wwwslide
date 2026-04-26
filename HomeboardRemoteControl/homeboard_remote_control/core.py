@@ -1,8 +1,11 @@
+import base64
+import io
 import json
 import os
 import threading
 
 import paho.mqtt.client as mqtt
+import qrcode
 
 
 def validate_homeboard_id(hb_id):
@@ -25,6 +28,20 @@ def as_positive_int(v):
         except ValueError:
             return None
     return None
+
+
+def _qr_data_url(text):
+    qr = qrcode.QRCode(
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=8,
+        border=2,
+    )
+    qr.add_data(text)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode('ascii')
 
 
 def as_bool(v):
@@ -58,13 +75,20 @@ class RemoteControlCore:
     messages. Call stop() to disconnect cleanly.
     """
 
+    _ACTIVE_SERVER_TOPIC = "homeboard_remote_control/active_server"
+    # Window after subscribing during which retained messages are treated as
+    # "already claimed" rather than "new server collision".
+    _ACTIVE_SERVER_CLAIM_DELAY_SECS = 2.0
+
     def __init__(self, mqtt_ip, mqtt_port, *,
+                 public_url=None,
                  on_bridge_state=None,
                  on_displayed_photo=None,
                  on_slideshow_active=None,
                  on_occupancy=None,
                  client_id_suffix=""):
         self._broker = (mqtt_ip, int(mqtt_port))
+        self._public_url = public_url
         self._on_bridge_state = on_bridge_state
         self._on_displayed_photo = on_displayed_photo
         self._on_slideshow_active = on_slideshow_active
@@ -75,6 +99,9 @@ class RemoteControlCore:
         self._displayed_photos = {}
         self._slideshow_active = {}
         self._occupancy = {}
+
+        self._active_server_settled = False
+        self._active_server_claim_timer = None
 
         suffix = client_id_suffix or str(os.getpid())
         self._client = mqtt.Client(
@@ -96,6 +123,9 @@ class RemoteControlCore:
     def stop(self):
         if not self._started:
             return
+        if self._active_server_claim_timer is not None:
+            self._active_server_claim_timer.cancel()
+            self._active_server_claim_timer = None
         self._client.loop_stop()
         self._client.disconnect()
         self._started = False
@@ -112,7 +142,17 @@ class RemoteControlCore:
         client.subscribe('+/state/slideshow_active', qos=0)
         client.subscribe('+/state/occupancy', qos=0)
 
+        client.subscribe(self._ACTIVE_SERVER_TOPIC, qos=1)
+        timer = threading.Timer(self._ACTIVE_SERVER_CLAIM_DELAY_SECS,
+                                self._claim_active_server_if_free)
+        timer.daemon = True
+        self._active_server_claim_timer = timer
+        timer.start()
+
     def _on_message(self, _client, _ud, msg):
+        if msg.topic == self._ACTIVE_SERVER_TOPIC:
+            self._handle_active_server(msg)
+            return
         parts = msg.topic.split('/')
         if len(parts) != 3 or parts[1] != 'state':
             return
@@ -126,6 +166,45 @@ class RemoteControlCore:
             self._handle_slideshow_active(prefix, msg.payload)
         elif suffix == 'occupancy':
             self._handle_occupancy(prefix, msg.payload)
+
+    def _handle_active_server(self, msg):
+        try:
+            data = json.loads(msg.payload.decode('utf-8'))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            print(f"Non-JSON active_server message: {msg.payload!r}")
+            return
+        if not isinstance(data, dict):
+            print(f"active_server message is not a JSON object: {data!r}")
+            return
+        url = data.get('url')
+        # The broker echoes our own retained publish back to us; ignore it.
+        if url == self._public_url:
+            return
+        with self._lock:
+            settled = self._active_server_settled
+            self._active_server_settled = True
+        if not settled:
+            print(f"Homeboard remote control already claimed by {url}; "
+                  f"this server ({self._public_url}) will not publish a claim")
+        else:
+            print(f"ERROR: another homeboard remote control server announced "
+                  f"itself at {url} (this server is at {self._public_url}); "
+                  f"collision detected")
+
+    def _claim_active_server_if_free(self):
+        with self._lock:
+            if self._active_server_settled:
+                return
+            self._active_server_settled = True
+        if self._public_url is None:
+            return
+        payload = json.dumps({
+            "url": self._public_url,
+            "qr_img": _qr_data_url(self._public_url),
+        })
+        print(f"Claiming {self._ACTIVE_SERVER_TOPIC} for {self._public_url}")
+        self._client.publish(self._ACTIVE_SERVER_TOPIC, payload,
+                             qos=1, retain=True)
 
     def _handle_bridge_state(self, prefix, raw_payload):
         try:
@@ -227,10 +306,10 @@ class RemoteControlCore:
         return self._send_cmd(hb_id, 'ambience', 'prev')
 
     def force_on(self, hb_id):
-        return self._send_cmd(hb_id, 'ambience', 'force_on')
+        return self._send_cmd(hb_id, 'presence', 'force_on')
 
     def force_off(self, hb_id):
-        return self._send_cmd(hb_id, 'ambience', 'force_off')
+        return self._send_cmd(hb_id, 'presence', 'force_off')
 
     def set_transition_time_secs(self, hb_id, secs):
         secs = as_positive_int(secs)

@@ -18,6 +18,7 @@ class RemoteControl:
         self._core = RemoteControlCore(
             conf["homeboard_mqtt"]["ip"],
             int(conf["homeboard_mqtt"]["port"]),
+            public_url=conf.get("service_url"),
         )
         self._core.start()
 

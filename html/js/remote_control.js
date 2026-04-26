@@ -87,6 +87,29 @@ function renderCard(hb) {
           <button data-act="set_embed_qr" data-val="1">on</button>
           <button data-act="set_embed_qr" data-val="0">off</button>
         </label>
+        <label>render:
+          <select data-cfg="rotation">
+            <option value="0">0&deg;</option>
+            <option value="90">90&deg;</option>
+            <option value="180">180&deg;</option>
+            <option value="270">270&deg;</option>
+          </select>
+          <select data-cfg="interp">
+            <option value="bilinear">bilinear</option>
+            <option value="nearest">nearest</option>
+          </select>
+          <select data-cfg="h_align">
+            <option value="center">center</option>
+            <option value="left">left</option>
+            <option value="right">right</option>
+          </select>
+          <select data-cfg="v_align">
+            <option value="center">center</option>
+            <option value="top">top</option>
+            <option value="bottom">bottom</option>
+          </select>
+          <button data-act="set_render_config">set</button>
+        </label>
       </div>
     </div>
   `;
@@ -95,8 +118,8 @@ function renderCard(hb) {
 function wireCard(cardEl) {
   const hbId = cardEl.getAttribute('data-hb-id');
   const getCfg = name => {
-    const inp = cardEl.querySelector(`input[data-cfg="${name}"]`);
-    return inp ? inp.value.trim() : '';
+    const el = cardEl.querySelector(`[data-cfg="${name}"]`);
+    return el ? el.value.trim() : '';
   };
 
   cardEl.querySelectorAll('button[data-act]').forEach(btn => {
@@ -114,6 +137,11 @@ function wireCard(cardEl) {
         body.height = h;
       } else if (act === 'set_embed_qr') {
         body.enabled = btn.getAttribute('data-val');
+      } else if (act === 'set_render_config') {
+        body.rotation = getCfg('rotation');
+        body.interp = getCfg('interp');
+        body.h_align = getCfg('h_align');
+        body.v_align = getCfg('v_align');
       }
       putJson(`/remote_control/${act}`, body);
     });

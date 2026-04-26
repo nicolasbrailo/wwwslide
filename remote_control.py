@@ -42,6 +42,9 @@ class RemoteControl:
         flask_app.add_url_rule('/remote_control/set_target_size',
                                'remote_control_set_target_size',
                                self._http_set_target_size, methods=['PUT'])
+        flask_app.add_url_rule('/remote_control/set_render_config',
+                               'remote_control_set_render_config',
+                               self._http_set_render_config, methods=['PUT'])
 
     def stop(self):
         self._core.stop()
@@ -117,4 +120,16 @@ class RemoteControl:
         if width is None or width == 0 or height is None or height == 0:
             return abort(400, description="Missing or invalid 'width'/'height' (positive integers)")
         self._core.set_target_size(hb_id, width, height)
+        return {}
+
+    def _http_set_render_config(self):
+        body, hb_id = self._read_hb_id_from_body()
+        rotation = as_positive_int(body.get('rotation'))
+        interp = body.get('interp')
+        h_align = body.get('h_align')
+        v_align = body.get('v_align')
+        if not self._core.set_render_config(hb_id, rotation, interp, h_align, v_align):
+            return abort(400, description="Invalid render config "
+                         "(rotation 0/90/180/270, interp nearest/bilinear, "
+                         "h_align left/center/right, v_align top/center/bottom)")
         return {}

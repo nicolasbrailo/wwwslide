@@ -331,3 +331,21 @@ class RemoteControlCore:
             return False
         return self._send_cmd(hb_id, 'photo_provider', 'set_target_size',
                               f"{width}x{height}")
+
+    _RENDER_ROTATIONS = (0, 90, 180, 270)
+    _RENDER_INTERPS = ('nearest', 'bilinear')
+    _RENDER_H_ALIGNS = ('left', 'center', 'right')
+    _RENDER_V_ALIGNS = ('top', 'center', 'bottom')
+
+    def set_render_config(self, hb_id, rotation, interp, h_align, v_align):
+        rot = as_positive_int(rotation)
+        if rot is None or rot not in self._RENDER_ROTATIONS:
+            return False
+        if interp not in self._RENDER_INTERPS:
+            return False
+        if h_align not in self._RENDER_H_ALIGNS:
+            return False
+        if v_align not in self._RENDER_V_ALIGNS:
+            return False
+        return self._send_cmd(hb_id, 'ambience', 'set_render_config',
+                              f"{rot} {interp} {h_align} {v_align}")

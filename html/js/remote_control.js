@@ -52,20 +52,22 @@ function renderKv(obj) {
   return `<table class="kv">${rows}</table>`;
 }
 
-function renderCard(hb) {
+function renderStateHtml(hb) {
   const stateCls = hb.state === 'online' ? 'online' : 'offline';
   const slideshow = hb.slideshow_active === null || hb.slideshow_active === undefined
     ? 'unknown' : (hb.slideshow_active ? 'active' : 'inactive');
+  return `bridge: <span class="${stateCls}">${esc(hb.state)}</span>`
+       + ` &middot; slideshow: ${esc(slideshow)}`;
+}
+
+function renderCard(hb) {
   return `
     <div class="hb_card" data-hb-id="${esc(hb.id)}">
       <h3>${esc(hb.id)}</h3>
-      <div class="hb_state">
-        bridge: <span class="${stateCls}">${esc(hb.state)}</span>
-        &middot; slideshow: ${esc(slideshow)}
-      </div>
+      <div class="hb_state">${renderStateHtml(hb)}</div>
       <div class="hb_meta">
-        <div class="hb_meta_col"><h4>displayed photo</h4>${renderKv(hb.displayed_photo)}</div>
-        <div class="hb_meta_col"><h4>occupancy</h4>${renderKv(hb.occupancy)}</div>
+        <div class="hb_meta_col"><h4>displayed photo</h4><div class="hb_displayed_photo">${renderKv(hb.displayed_photo)}</div></div>
+        <div class="hb_meta_col"><h4>occupancy</h4><div class="hb_occupancy">${renderKv(hb.occupancy)}</div></div>
       </div>
       <div class="hb_controls">
         <button data-act="prev">⏪ prev</button>
@@ -148,6 +150,15 @@ function wireCard(cardEl) {
   });
 }
 
+function updateCard(cardEl, hb) {
+  const stateEl = cardEl.querySelector('.hb_state');
+  if (stateEl) stateEl.innerHTML = renderStateHtml(hb);
+  const dpEl = cardEl.querySelector('.hb_displayed_photo');
+  if (dpEl) dpEl.innerHTML = renderKv(hb.displayed_photo);
+  const occEl = cardEl.querySelector('.hb_occupancy');
+  if (occEl) occEl.innerHTML = renderKv(hb.occupancy);
+}
+
 function refresh() {
   mAjax({
     url: '/remote_control/list',
@@ -155,11 +166,29 @@ function refresh() {
     success: resp => {
       const list = (resp && resp.homeboards) || [];
       const container = m$('hb_list');
+      const seen = new Set();
       if (list.length === 0) {
         container.innerHTML = '<p>No homeboards seen yet.</p>';
       } else {
-        container.innerHTML = list.map(renderCard).join('');
-        container.querySelectorAll('.hb_card').forEach(wireCard);
+        // First refresh after the empty-state message: clear it.
+        if (container.querySelector('.hb_card') === null) container.innerHTML = '';
+        list.forEach(hb => {
+          seen.add(hb.id);
+          let cardEl = container.querySelector(`.hb_card[data-hb-id="${CSS.escape(hb.id)}"]`);
+          if (cardEl) {
+            updateCard(cardEl, hb);
+          } else {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = renderCard(hb);
+            cardEl = tmp.firstElementChild;
+            container.appendChild(cardEl);
+            wireCard(cardEl);
+          }
+        });
+        // Drop cards for homeboards no longer in the list.
+        container.querySelectorAll('.hb_card').forEach(card => {
+          if (!seen.has(card.getAttribute('data-hb-id'))) card.remove();
+        });
       }
       setStatus(`${list.length} homeboard(s) · updated ${new Date().toLocaleTimeString()}`);
     },

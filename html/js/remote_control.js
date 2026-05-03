@@ -60,10 +60,38 @@ function renderStateHtml(hb) {
        + ` &middot; slideshow: ${esc(slideshow)}`;
 }
 
+function formatUptime(secs) {
+  if (secs < 0) return '?';
+  if (secs < 60) return secs + 's';
+  if (secs < 3600) return Math.floor(secs / 60) + 'm';
+  if (secs < 86400) return Math.floor(secs / 3600) + 'h';
+  return Math.floor(secs / 86400) + 'd';
+}
+
+function renderHostHeader(hb) {
+  const info = hb.host_info;
+  const titleText = (info && info.hostname) ? info.hostname : hb.id;
+  const subParts = [];
+  if (info && info.hostname && info.hostname !== hb.id) {
+    subParts.push(`<code>${esc(hb.id)}</code>`);
+  }
+  if (info) {
+    if (info.host_model) subParts.push(esc(info.host_model));
+    if (info.ip) subParts.push(esc(info.ip));
+    if (typeof info.started_at === 'number') {
+      const up = Math.floor(Date.now() / 1000) - info.started_at;
+      subParts.push('up ' + formatUptime(up));
+    }
+  }
+  const sub = subParts.length
+    ? `<div class="hb_subtitle">${subParts.join(' &middot; ')}</div>` : '';
+  return `<h3>${esc(titleText)}</h3>${sub}`;
+}
+
 function renderCard(hb) {
   return `
     <div class="hb_card" data-hb-id="${esc(hb.id)}">
-      <h3>${esc(hb.id)}</h3>
+      <div class="hb_header">${renderHostHeader(hb)}</div>
       <div class="hb_state">${renderStateHtml(hb)}</div>
       <div class="hb_meta">
         <div class="hb_meta_col"><h4>displayed photo</h4><div class="hb_displayed_photo">${renderKv(hb.displayed_photo)}</div></div>
@@ -151,6 +179,8 @@ function wireCard(cardEl) {
 }
 
 function updateCard(cardEl, hb) {
+  const headerEl = cardEl.querySelector('.hb_header');
+  if (headerEl) headerEl.innerHTML = renderHostHeader(hb);
   const stateEl = cardEl.querySelector('.hb_state');
   if (stateEl) stateEl.innerHTML = renderStateHtml(hb);
   const dpEl = cardEl.querySelector('.hb_displayed_photo');

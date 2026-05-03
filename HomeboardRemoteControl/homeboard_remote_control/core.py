@@ -86,6 +86,7 @@ class RemoteControlCore:
                  on_displayed_photo=None,
                  on_slideshow_active=None,
                  on_occupancy=None,
+                 on_host_info=None,
                  client_id_suffix=""):
         self._broker = (mqtt_ip, int(mqtt_port))
         self._public_url = public_url
@@ -93,12 +94,14 @@ class RemoteControlCore:
         self._on_displayed_photo = on_displayed_photo
         self._on_slideshow_active = on_slideshow_active
         self._on_occupancy = on_occupancy
+        self._on_host_info = on_host_info
 
         self._lock = threading.Lock()
         self._homeboards = {}
         self._displayed_photos = {}
         self._slideshow_active = {}
         self._occupancy = {}
+        self._host_info = {}
 
         self._active_server_settled = False
         self._active_server_claim_timer = None
@@ -138,6 +141,7 @@ class RemoteControlCore:
         # Bridges publish "<prefix>/state/bridge" as retained "online"/"offline".
         # Subscribing to this wildcard lets us enumerate all registered prefixes.
         client.subscribe('+/state/bridge', qos=0)
+        client.subscribe('+/state/bridge_info', qos=0)
         client.subscribe('+/state/displayed_photo', qos=0)
         client.subscribe('+/state/slideshow_active', qos=0)
         client.subscribe('+/state/occupancy', qos=0)
@@ -160,6 +164,8 @@ class RemoteControlCore:
         suffix = parts[2]
         if suffix == 'bridge':
             self._handle_bridge_state(prefix, msg.payload)
+        elif suffix == 'bridge_info':
+            self._handle_bridge_info(prefix, msg.payload)
         elif suffix == 'displayed_photo':
             self._handle_displayed_photo(prefix, msg.payload)
         elif suffix == 'slideshow_active':
@@ -238,6 +244,28 @@ class RemoteControlCore:
         if self._on_displayed_photo is not None:
             self._on_displayed_photo(prefix, data)
 
+    def _handle_bridge_info(self, prefix, raw_payload):
+        # Empty retained payload means the bridge cleared its claim on
+        # disconnect. Drop our cached copy so it stops surfacing in the UI.
+        if not raw_payload:
+            with self._lock:
+                self._host_info.pop(prefix, None)
+            if self._on_host_info is not None:
+                self._on_host_info(prefix, None)
+            return
+        try:
+            data = json.loads(raw_payload.decode('utf-8'))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            print(f"Non-JSON bridge_info for '{prefix}'")
+            return
+        if not isinstance(data, dict):
+            print(f"bridge_info for '{prefix}' is not a JSON object")
+            return
+        with self._lock:
+            self._host_info[prefix] = data
+        if self._on_host_info is not None:
+            self._on_host_info(prefix, data)
+
     def _handle_occupancy(self, prefix, raw_payload):
         try:
             data = json.loads(raw_payload.decode('utf-8'))
@@ -281,6 +309,7 @@ class RemoteControlCore:
                 "slideshow_active": self._slideshow_active.get(k),
                 "occupancy": self._occupancy.get(k),
                 "displayed_photo": self._displayed_photos.get(k),
+                "host_info": self._host_info.get(k),
             } for k, v in sorted(self._homeboards.items())]
 
     def get_displayed_photo(self, hb_id):

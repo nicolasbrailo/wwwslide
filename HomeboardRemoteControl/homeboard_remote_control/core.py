@@ -214,12 +214,16 @@ class RemoteControlCore:
 
     def _handle_bridge_state(self, prefix, raw_payload):
         try:
-            state = raw_payload.decode('utf-8').strip().strip('"').lower()
-        except UnicodeDecodeError:
-            print(f"Non-utf8 bridge state for '{prefix}'")
+            data = json.loads(raw_payload.decode('utf-8'))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            print(f"Non-JSON bridge state for '{prefix}': {raw_payload!r}")
             return
+        if not isinstance(data, dict):
+            print(f"bridge state for '{prefix}' is not a JSON object")
+            return
+        state = data.get('state')
         if state not in ('online', 'offline'):
-            print(f"Unexpected bridge state '{state}' for '{prefix}'")
+            print(f"Unexpected bridge state {state!r} for '{prefix}'")
             return
         with self._lock:
             prev = self._homeboards.get(prefix)
@@ -282,16 +286,17 @@ class RemoteControlCore:
 
     def _handle_slideshow_active(self, prefix, raw_payload):
         try:
-            text = raw_payload.decode('utf-8').strip().strip('"').lower()
-        except UnicodeDecodeError:
-            print(f"Non-utf8 slideshow_active for '{prefix}'")
+            data = json.loads(raw_payload.decode('utf-8'))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            print(f"Non-JSON slideshow_active for '{prefix}': {raw_payload!r}")
             return
-        if text in ('1', 'true', 'on', 'active', 'yes'):
-            active = True
-        elif text in ('0', 'false', 'off', 'inactive', 'no'):
-            active = False
-        else:
-            print(f"Unknown slideshow_active value '{text}' for '{prefix}'")
+        if not isinstance(data, dict):
+            print(f"slideshow_active for '{prefix}' is not a JSON object")
+            return
+        active = data.get('active')
+        if not isinstance(active, bool):
+            print(f"slideshow_active 'active' field for '{prefix}' "
+                  f"is not a bool: {active!r}")
             return
         with self._lock:
             prev = self._slideshow_active.get(prefix)
@@ -321,7 +326,8 @@ class RemoteControlCore:
         if hb_id is None:
             return False
         topic = f"{hb_id}/cmd/{service}/{command}"
-        print(f"Publishing '{topic}' ({payload}) to homeboard broker")
+        log_payload = payload if len(payload) <= 50 else payload[:50] + "..."
+        print(f"Publishing '{topic}' ({log_payload}) to homeboard broker")
         info = self._client.publish(topic, payload, qos=0)
         if info.rc != mqtt.MQTT_ERR_SUCCESS:
             print(f"Failed to publish '{topic}', rc={info.rc}")
@@ -344,14 +350,33 @@ class RemoteControlCore:
         secs = as_positive_int(secs)
         if secs is None:
             return False
-        return self._send_cmd(hb_id, 'ambience', 'set_transition_time_secs', str(secs))
+        return self._send_cmd(hb_id, 'ambience', 'set_transition_time_secs',
+                              json.dumps({"secs": secs}))
+
+    def announce(self, hb_id, timeout_secs, msg):
+        timeout_secs = as_positive_int(timeout_secs)
+        if timeout_secs is None:
+            return False
+        if not isinstance(msg, str):
+            return False
+        return self._send_cmd(hb_id, 'ambience', 'announce',
+                              json.dumps({"timeout": timeout_secs, "msg": msg}))
+
+    def set_svg_overlay(self, hb_id, timeout_secs, svg):
+        timeout_secs = as_positive_int(timeout_secs)
+        if timeout_secs is None:
+            return False
+        if not isinstance(svg, str):
+            return False
+        return self._send_cmd(hb_id, 'ambience', 'set_svg_overlay',
+                              json.dumps({"timeout": timeout_secs, "svg": svg}))
 
     def set_embed_qr(self, hb_id, enabled):
         enabled = as_bool(enabled)
         if enabled is None:
             return False
         return self._send_cmd(hb_id, 'photo_provider', 'set_embed_qr',
-                              '1' if enabled else '0')
+                              json.dumps({"on": enabled}))
 
     def set_target_size(self, hb_id, width, height):
         width = as_positive_int(width)
@@ -359,7 +384,7 @@ class RemoteControlCore:
         if not width or not height:
             return False
         return self._send_cmd(hb_id, 'photo_provider', 'set_target_size',
-                              f"{width}x{height}")
+                              json.dumps({"w": width, "h": height}))
 
     _RENDER_ROTATIONS = (0, 90, 180, 270)
     _RENDER_INTERPS = ('nearest', 'bilinear')
@@ -377,4 +402,9 @@ class RemoteControlCore:
         if v_align not in self._RENDER_V_ALIGNS:
             return False
         return self._send_cmd(hb_id, 'ambience', 'set_render_config',
-                              f"{rot} {interp} {h_align} {v_align}")
+                              json.dumps({
+                                  "rotation": rot,
+                                  "interp": interp,
+                                  "h_align": h_align,
+                                  "v_align": v_align,
+                              }))

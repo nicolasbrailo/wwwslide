@@ -1,3 +1,8 @@
+import datetime
+import logging
+import threading
+import time
+
 from flask import abort, request, send_from_directory
 
 from homeboard_remote_control import (
@@ -7,12 +12,27 @@ from homeboard_remote_control import (
     as_bool,
 )
 
+log = logging.getLogger(__name__)
+
 
 class RemoteControl:
     """
     Flask HTTP adapter for homeboard_remote_control.RemoteControlCore.
     Registers /remote_control/* endpoints and serves the UI at /remote_control.
+
+    Also runs a nightly janitor that clears retained `state/bridge` records
+    for homeboards that have been offline since longer than
+    _JANITOR_STALE_SECS. The bridge republishes a fresh `started_at` every
+    time it reconnects, so a device that genuinely returns will overwrite
+    the cleared record on its own; anything still showing an old
+    `started_at` while offline is presumed gone for good.
     """
+
+    # Local hour to run the janitor at. 3am is past midnight chores and
+    # before morning use.
+    _JANITOR_RUN_HOUR = 3
+    # Offline records with started_at older than this are cleared.
+    _JANITOR_STALE_SECS = 30 * 24 * 3600
 
     def __init__(self, conf, flask_app):
         self._core = RemoteControlCore(
@@ -21,6 +41,10 @@ class RemoteControl:
             public_url=conf.get("service_url"),
         )
         self._core.start()
+
+        self._janitor_stopping = False
+        self._janitor_timer = None
+        self._schedule_janitor()
 
         flask_app.add_url_rule('/remote_control', 'remote_control_html', self._serve_html)
         flask_app.add_url_rule('/remote_control/list', 'remote_control_list', self._http_list)
@@ -47,7 +71,65 @@ class RemoteControl:
                                self._http_set_render_config, methods=['PUT'])
 
     def stop(self):
+        self._janitor_stopping = True
+        if self._janitor_timer is not None:
+            self._janitor_timer.cancel()
+            self._janitor_timer = None
         self._core.stop()
+
+    def _schedule_janitor(self):
+        if self._janitor_stopping:
+            return
+        delay = self._secs_until_next_run()
+        log.info("janitor: next run in %.1fh", delay / 3600.0)
+        self._janitor_timer = threading.Timer(delay, self._run_janitor)
+        self._janitor_timer.daemon = True
+        self._janitor_timer.start()
+
+    def _secs_until_next_run(self):
+        now = datetime.datetime.now()
+        target = now.replace(hour=self._JANITOR_RUN_HOUR,
+                             minute=0, second=0, microsecond=0)
+        if target <= now:
+            target += datetime.timedelta(days=1)
+        return (target - now).total_seconds()
+
+    def _run_janitor(self):
+        if self._janitor_stopping:
+            return
+        try:
+            self._clear_stale_offline()
+        except Exception:
+            log.exception("janitor: run failed")
+        self._schedule_janitor()
+
+    def _clear_stale_offline(self):
+        cutoff = time.time() - self._JANITOR_STALE_SECS
+        cleared = 0
+        # list_homeboards() returns a snapshot, so we don't hold the core's
+        # internal lock while publishing. Race window: a stale device could
+        # come online between snapshot and clear; harmless because it'd
+        # republish on its next reconnect.
+        for hb in self._core.list_homeboards():
+            if hb.get("state") != "offline":
+                continue
+            host_info = hb.get("host_info") or {}
+            started_at = host_info.get("started_at")
+            if not isinstance(started_at, (int, float)):
+                continue
+            if started_at >= cutoff:
+                continue
+            topic = f"{hb['id']}/state/bridge"
+            log.info("janitor: clearing stale retained %s (started_at=%s)",
+                     topic, started_at)
+            # Reach into the underlying paho client to publish a zero-byte
+            # retained payload, which the broker treats as "delete the
+            # retained record for this topic." Core's command path is for
+            # `<id>/cmd/...` only, so we don't route this through it.
+            self._core._client.publish(topic, payload=None,
+                                       qos=0, retain=True)
+            cleared += 1
+        log.info("janitor: cleared %d stale homeboard record(s)", cleared)
 
     def _serve_html(self):
         return send_from_directory('html', 'remote_control.html')

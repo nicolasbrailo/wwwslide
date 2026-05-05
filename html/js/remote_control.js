@@ -85,6 +85,7 @@ function renderHostHeader(hb) {
   }
   const sub = subParts.length
     ? `<div class="hb_subtitle">${subParts.join(' &middot; ')}</div>` : '';
+  console.log(hb)
   return `<h3>${esc(titleText)}</h3>${sub}`;
 }
 

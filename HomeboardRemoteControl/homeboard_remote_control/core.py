@@ -176,6 +176,9 @@ class RemoteControlCore:
             self._handle_occupancy(prefix, msg.payload)
 
     def _handle_active_server(self, msg):
+        if self._public_url:
+            # We're not an active RC server, so we don't care about collisions
+            return
         try:
             data = json.loads(msg.payload.decode('utf-8'))
         except (UnicodeDecodeError, json.JSONDecodeError):

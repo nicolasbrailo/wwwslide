@@ -6,6 +6,8 @@ import os
 import qrcode
 import time
 import urllib.parse
+import logging
+log = logging.getLogger(__name__)
 
 def delete_old_files(directory, threshold_days=1):
     cnt = 0
@@ -18,9 +20,9 @@ def delete_old_files(directory, threshold_days=1):
                 if time.time() - file_mtime > threshold_seconds:
                     os.remove(file_path)
                     cnt = cnt + 1
-                    print(f"Deleted: {file_path}")
+                    log.info(f"Deleted: {file_path}")
             except Exception as e:
-                print(f"Error removing {file_path}: {e}")
+                log.error(f"Error removing {file_path}: {e}")
 
     return cnt
 
@@ -134,7 +136,7 @@ class ImageSender:
         flask_app.add_url_rule("/img/raw/<path:imgpath>", "img_raw", self.img_raw)
 
     def send_image(self, client_cfg, path):
-        print("Serve image ", path)
+        log.info("Serve image %s", path)
         path = _maybe_mogrify_image(self.cfg, client_cfg, path)
         return send_file(path)
 
@@ -148,11 +150,9 @@ class ImageSender:
         return get_img_meta(self.cfg["img_directory"], imgpath, self.cfg["rev_geo_apikey"])
 
     def img_raw(self, imgpath):
-        print(imgpath)
         if not imgpath.startswith(self.cfg["img_directory"]):
             # This is probably not a path, but a hash to a path
             imgpath = img_path_from_hash(imgpath)
-        print(imgpath)
 
         if not imgpath.startswith(self.cfg["img_directory"]):
             # Or maybe it was just garbage...

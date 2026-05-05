@@ -32,7 +32,7 @@ class RemoteControl:
     # before morning use.
     _JANITOR_RUN_HOUR = 3
     # Offline records with started_at older than this are cleared.
-    _JANITOR_STALE_SECS = 30 * 24 * 3600
+    _JANITOR_STALE_SECS = 3 * 24 * 3600
 
     def __init__(self, conf, flask_app):
         self._core = RemoteControlCore(
@@ -44,7 +44,8 @@ class RemoteControl:
 
         self._janitor_stopping = False
         self._janitor_timer = None
-        self._schedule_janitor()
+        # On startup, clean up old homeboard instances to make dev easier
+        self._schedule_janitor(5)
 
         flask_app.add_url_rule('/remote_control', 'remote_control_html', self._serve_html)
         flask_app.add_url_rule('/remote_control/list', 'remote_control_list', self._http_list)
@@ -77,10 +78,11 @@ class RemoteControl:
             self._janitor_timer = None
         self._core.stop()
 
-    def _schedule_janitor(self):
+    def _schedule_janitor(self, delay=None):
         if self._janitor_stopping:
             return
-        delay = self._secs_until_next_run()
+        if not delay:
+            delay = self._secs_until_next_run()
         log.info("janitor: next run in %.1fh", delay / 3600.0)
         self._janitor_timer = threading.Timer(delay, self._run_janitor)
         self._janitor_timer.daemon = True
@@ -104,18 +106,19 @@ class RemoteControl:
         self._schedule_janitor()
 
     def _clear_stale_offline(self):
-        cutoff = time.time() - self._JANITOR_STALE_SECS
+        cutoff = time.time() #- self._JANITOR_STALE_SECS
         cleared = 0
         # list_homeboards() returns a snapshot, so we don't hold the core's
         # internal lock while publishing. Race window: a stale device could
         # come online between snapshot and clear; harmless because it'd
         # republish on its next reconnect.
         for hb in self._core.list_homeboards():
-            if hb.get("state") != "offline":
-                continue
             host_info = hb.get("host_info") or {}
             started_at = host_info.get("started_at")
             if not isinstance(started_at, (int, float)):
+                started_at = 0
+            log.info("Found HB %s started_at=%s now=%s", hb['id'], started_at, cutoff)
+            if hb.get("state", "offline") != "offline":
                 continue
             if started_at >= cutoff:
                 continue

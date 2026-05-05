@@ -1,5 +1,7 @@
 import os
 import random
+import logging
+log = logging.getLogger(__name__)
 
 def lsImgs(path, allowed_extensions):
     interesting = lambda p: os.path.isfile(p) and os.path.splitext(p)[1].lower() in allowed_extensions
@@ -12,13 +14,13 @@ def lsDirs(base_path, allowed_extensions):
         raise ValueError(f"Can't find albums base path {base_path}, doesn't exist")
 
     directories = []
-    print(f"Scanning {base_path} for albums...")
+    log.info(f"Scanning {base_path} for albums...")
     for dirpath, dirnames, _ in os.walk(base_path):
         relative_path = os.path.relpath(dirpath, base_path)
         full_path = os.path.join(base_path, relative_path)
         if not relative_path.startswith('.') and len(lsImgs(full_path, allowed_extensions)) != 0:
             directories.append(relative_path)
-    print(f"Found {len(directories)} albums")
+    log.info(f"Found {len(directories)} albums")
     return directories
 
 def get_random_files(cnt, path, allowed_extensions):

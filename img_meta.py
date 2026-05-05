@@ -3,6 +3,8 @@ import exifread
 import json
 import os
 import requests
+import logging
+log = logging.getLogger(__name__)
 
 def convert_to_degrees(value):
     """Helper function to convert the GPS coordinates stored in EXIF format to degrees."""
@@ -54,7 +56,7 @@ def add_rev_geo(exif, rev_geo_apikey):
         lat = exif["gps"]["lat"]
         lon = exif["gps"]["lon"]
     except TypeError:
-        print(f"Invalid GPS {exif['gps']}")
+        log.error(f"Invalid GPS {exif['gps']}")
         return
 
     url = f"https://api.geoapify.com/v1/geocode/reverse?lat={round(lat, 3)}&lon={round(lon, 3)}&format=json&apiKey={rev_geo_apikey}"

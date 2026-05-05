@@ -6,6 +6,13 @@ from remote_control import RemoteControl
 import json
 import threading
 import time
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+)
+
+log = logging.getLogger(__name__)
 
 with open("config.json", 'r') as fp:
     CONF = json.load(fp)
@@ -38,12 +45,12 @@ def bg_clients_clean():
 
 def bg_cache_clean():
     while True:
-        print('Clean up old files...')
+        log.info('Clean up old files...')
         cnt = img_sender.cleanup_cache()
-        print(f'Removed {cnt} old files...')
+        log.info(f'Removed {cnt} old files...')
         # Sleep for a day
         time.sleep(60 * 60 * 24)
-        print(f'Updating album collection...')
+        log.info(f'Updating album collection...')
         clients.update_albums(Albums(CONF))
 
 cleanup_clients_th = threading.Thread(target=bg_clients_clean)
@@ -55,6 +62,6 @@ cleanup_cache_th.daemon = True
 cleanup_cache_th.start()
 
 if __name__ == '__main__':
-    print("Starting wwwslider")
+    log.info("Starting wwwslider")
     flask_app.run(debug=True, host="0.0.0.0")
 

@@ -3,6 +3,8 @@ from image_sender import img_path_from_hash, get_img_meta
 import json
 import time
 import os
+import logging
+log = logging.getLogger(__name__)
 
 class Clients:
     """
@@ -98,7 +100,7 @@ class Clients:
         return json.dumps(self._get_stale_clients())
     def cleanup_stale_clients(self):
         for client_id in self._get_stale_clients():
-            print(f"Stale client {client_id}, cleanup")
+            log.info(f"Stale client {client_id}, cleanup")
             del self.known_clients[client_id]
 
     def client_register(self, client_id=None):
@@ -110,12 +112,12 @@ class Clients:
         try:
             client_args = request.get_json()
         except:
-            print(f"Can't understand client request, expected json, got: {request.json}")
+            log.info(f"Can't understand client request, expected json, got: {request.json}")
             client_args = {}
 
         if ('target_width' in client_args) or ('target_height' in client_args):
             if not (('target_width' in client_args) and ('target_height' in client_args)):
-                print(f"Client requested width or height target, but not both: {request.json}")
+                log.info(f"Client requested width or height target, but not both: {request.json}")
             else:
                 self.client_cfg_target_size(client_id, client_args['target_width'],client_args['target_height'])
 
@@ -128,9 +130,9 @@ class Clients:
         if new_id is None:
             new_id = f"client_{int(time.time())}{len(self.known_clients)}"
         if new_id in self.known_clients:
-            print(f"New client requests id {new_id}")
+            log.info(f"New client requests id {new_id}")
         else:
-            print(f"New client {new_id} registered")
+            log.info(f"New client {new_id} registered")
             self.known_clients[new_id] = {
                     "ip": request.remote_addr,
                     "client_id": new_id,

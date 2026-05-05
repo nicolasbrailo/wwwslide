@@ -140,12 +140,12 @@ class RemoteControlCore:
         if ret_code == 0:
             log.info("Connected to homeboard MQTT broker %s", self._broker)
         else:
-            log.warning("Homeboard MQTT connect to %s returned rc=%s",
-                        self._broker, ret_code)
-        # Bridges publish "<prefix>/state/bridge" as retained "online"/"offline".
-        # Subscribing to this wildcard lets us enumerate all registered prefixes.
+            log.warning("Homeboard MQTT connect to %s returned rc=%s", self._broker, ret_code)
+        # Bridges publish "<prefix>/state/bridge" retained, carrying both the
+        # online/offline state and the host info (machine_id, hostname, ip,
+        # ...) in a single JSON object. Subscribing to this wildcard lets us
+        # enumerate all registered prefixes.
         client.subscribe('+/state/bridge', qos=0)
-        client.subscribe('+/state/bridge_info', qos=0)
         client.subscribe('+/state/displayed_photo', qos=0)
         client.subscribe('+/state/slideshow_active', qos=0)
         client.subscribe('+/state/occupancy', qos=0)
@@ -167,9 +167,7 @@ class RemoteControlCore:
         prefix = parts[0]
         suffix = parts[2]
         if suffix == 'bridge':
-            self._handle_bridge_state(prefix, msg.payload)
-        elif suffix == 'bridge_info':
-            self._handle_bridge_info(prefix, msg.payload)
+            self._handle_bridge(prefix, msg.payload)
         elif suffix == 'displayed_photo':
             self._handle_displayed_photo(prefix, msg.payload)
         elif suffix == 'slideshow_active':
@@ -218,7 +216,7 @@ class RemoteControlCore:
         self._client.publish(self._ACTIVE_SERVER_TOPIC, payload,
                              qos=1, retain=True)
 
-    def _handle_bridge_state(self, prefix, raw_payload):
+    def _handle_bridge(self, prefix, raw_payload):
         try:
             data = json.loads(raw_payload.decode('utf-8'))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -234,10 +232,13 @@ class RemoteControlCore:
         with self._lock:
             prev = self._homeboards.get(prefix)
             self._homeboards[prefix] = state
+            self._host_info[prefix] = data
         if prev != state:
             log.info("Homeboard '%s' is %s", prefix, state)
         if self._on_bridge_state is not None:
             self._on_bridge_state(prefix, state)
+        if self._on_host_info is not None:
+            self._on_host_info(prefix, data)
 
     def _handle_displayed_photo(self, prefix, raw_payload):
         try:
@@ -253,28 +254,6 @@ class RemoteControlCore:
         log.info("Homeboard '%s' displaying: %s", prefix, data.get('filename'))
         if self._on_displayed_photo is not None:
             self._on_displayed_photo(prefix, data)
-
-    def _handle_bridge_info(self, prefix, raw_payload):
-        # Empty retained payload means the bridge cleared its claim on
-        # disconnect. Drop our cached copy so it stops surfacing in the UI.
-        if not raw_payload:
-            with self._lock:
-                self._host_info.pop(prefix, None)
-            if self._on_host_info is not None:
-                self._on_host_info(prefix, None)
-            return
-        try:
-            data = json.loads(raw_payload.decode('utf-8'))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            log.warning("Non-JSON bridge_info for '%s'", prefix)
-            return
-        if not isinstance(data, dict):
-            log.warning("bridge_info for '%s' is not a JSON object", prefix)
-            return
-        with self._lock:
-            self._host_info[prefix] = data
-        if self._on_host_info is not None:
-            self._on_host_info(prefix, data)
 
     def _handle_occupancy(self, prefix, raw_payload):
         try:

@@ -1,11 +1,14 @@
 import base64
 import io
 import json
+import logging
 import os
 import threading
 
 import paho.mqtt.client as mqtt
 import qrcode
+
+log = logging.getLogger(__name__)
 
 
 def validate_homeboard_id(hb_id):
@@ -119,7 +122,7 @@ class RemoteControlCore:
             return
         self._started = True
         ip, port = self._broker
-        print(f"Connecting to homeboard MQTT broker [{ip}]:{port}...")
+        log.info("Connecting to homeboard MQTT broker [%s]:%s...", ip, port)
         self._client.connect_async(ip, port, 30)
         self._client.loop_start()
 
@@ -135,9 +138,10 @@ class RemoteControlCore:
 
     def _on_connect(self, client, _ud, _flags, ret_code, _props):
         if ret_code == 0:
-            print(f"Connected to homeboard MQTT broker {self._broker}")
+            log.info("Connected to homeboard MQTT broker %s", self._broker)
         else:
-            print(f"Homeboard MQTT connect to {self._broker} returned rc={ret_code}")
+            log.warning("Homeboard MQTT connect to %s returned rc=%s",
+                        self._broker, ret_code)
         # Bridges publish "<prefix>/state/bridge" as retained "online"/"offline".
         # Subscribing to this wildcard lets us enumerate all registered prefixes.
         client.subscribe('+/state/bridge', qos=0)
@@ -177,10 +181,10 @@ class RemoteControlCore:
         try:
             data = json.loads(msg.payload.decode('utf-8'))
         except (UnicodeDecodeError, json.JSONDecodeError):
-            print(f"Non-JSON active_server message: {msg.payload!r}")
+            log.warning("Non-JSON active_server message: %r", msg.payload)
             return
         if not isinstance(data, dict):
-            print(f"active_server message is not a JSON object: {data!r}")
+            log.warning("active_server message is not a JSON object: %r", data)
             return
         url = data.get('url')
         # The broker echoes our own retained publish back to us; ignore it.
@@ -190,12 +194,13 @@ class RemoteControlCore:
             settled = self._active_server_settled
             self._active_server_settled = True
         if not settled:
-            print(f"Homeboard remote control already claimed by {url}; "
-                  f"this server ({self._public_url}) will not publish a claim")
+            log.info("Homeboard remote control already claimed by %s; "
+                     "this server (%s) will not publish a claim",
+                     url, self._public_url)
         else:
-            print(f"ERROR: another homeboard remote control server announced "
-                  f"itself at {url} (this server is at {self._public_url}); "
-                  f"collision detected")
+            log.error("Another homeboard remote control server announced "
+                      "itself at %s (this server is at %s); collision detected",
+                      url, self._public_url)
 
     def _claim_active_server_if_free(self):
         with self._lock:
@@ -208,7 +213,8 @@ class RemoteControlCore:
             "url": self._public_url,
             "qr_img": _qr_data_url(self._public_url),
         })
-        print(f"Claiming {self._ACTIVE_SERVER_TOPIC} for {self._public_url}")
+        log.info("Claiming %s for %s",
+                 self._ACTIVE_SERVER_TOPIC, self._public_url)
         self._client.publish(self._ACTIVE_SERVER_TOPIC, payload,
                              qos=1, retain=True)
 
@@ -216,20 +222,20 @@ class RemoteControlCore:
         try:
             data = json.loads(raw_payload.decode('utf-8'))
         except (UnicodeDecodeError, json.JSONDecodeError):
-            print(f"Non-JSON bridge state for '{prefix}': {raw_payload!r}")
+            log.warning("Non-JSON bridge state for '%s': %r", prefix, raw_payload)
             return
         if not isinstance(data, dict):
-            print(f"bridge state for '{prefix}' is not a JSON object")
+            log.warning("bridge state for '%s' is not a JSON object", prefix)
             return
         state = data.get('state')
         if state not in ('online', 'offline'):
-            print(f"Unexpected bridge state {state!r} for '{prefix}'")
+            log.warning("Unexpected bridge state %r for '%s'", state, prefix)
             return
         with self._lock:
             prev = self._homeboards.get(prefix)
             self._homeboards[prefix] = state
         if prev != state:
-            print(f"Homeboard '{prefix}' is {state}")
+            log.info("Homeboard '%s' is %s", prefix, state)
         if self._on_bridge_state is not None:
             self._on_bridge_state(prefix, state)
 
@@ -237,14 +243,14 @@ class RemoteControlCore:
         try:
             data = json.loads(raw_payload.decode('utf-8'))
         except (UnicodeDecodeError, json.JSONDecodeError):
-            print(f"Non-JSON displayed_photo for '{prefix}'")
+            log.warning("Non-JSON displayed_photo for '%s'", prefix)
             return
         if not isinstance(data, dict):
-            print(f"displayed_photo for '{prefix}' is not a JSON object")
+            log.warning("displayed_photo for '%s' is not a JSON object", prefix)
             return
         with self._lock:
             self._displayed_photos[prefix] = data
-        print(f"Homeboard '{prefix}' displaying: {data.get('filename')}")
+        log.info("Homeboard '%s' displaying: %s", prefix, data.get('filename'))
         if self._on_displayed_photo is not None:
             self._on_displayed_photo(prefix, data)
 
@@ -260,10 +266,10 @@ class RemoteControlCore:
         try:
             data = json.loads(raw_payload.decode('utf-8'))
         except (UnicodeDecodeError, json.JSONDecodeError):
-            print(f"Non-JSON bridge_info for '{prefix}'")
+            log.warning("Non-JSON bridge_info for '%s'", prefix)
             return
         if not isinstance(data, dict):
-            print(f"bridge_info for '{prefix}' is not a JSON object")
+            log.warning("bridge_info for '%s' is not a JSON object", prefix)
             return
         with self._lock:
             self._host_info[prefix] = data
@@ -274,10 +280,10 @@ class RemoteControlCore:
         try:
             data = json.loads(raw_payload.decode('utf-8'))
         except (UnicodeDecodeError, json.JSONDecodeError):
-            print(f"Non-JSON occupancy for '{prefix}'")
+            log.warning("Non-JSON occupancy for '%s'", prefix)
             return
         if not isinstance(data, dict):
-            print(f"occupancy for '{prefix}' is not a JSON object")
+            log.warning("occupancy for '%s' is not a JSON object", prefix)
             return
         with self._lock:
             self._occupancy[prefix] = data
@@ -288,21 +294,22 @@ class RemoteControlCore:
         try:
             data = json.loads(raw_payload.decode('utf-8'))
         except (UnicodeDecodeError, json.JSONDecodeError):
-            print(f"Non-JSON slideshow_active for '{prefix}': {raw_payload!r}")
+            log.warning("Non-JSON slideshow_active for '%s': %r", prefix, raw_payload)
             return
         if not isinstance(data, dict):
-            print(f"slideshow_active for '{prefix}' is not a JSON object")
+            log.warning("slideshow_active for '%s' is not a JSON object", prefix)
             return
         active = data.get('active')
         if not isinstance(active, bool):
-            print(f"slideshow_active 'active' field for '{prefix}' "
-                  f"is not a bool: {active!r}")
+            log.warning("slideshow_active 'active' field for '%s' is not a bool: %r",
+                        prefix, active)
             return
         with self._lock:
             prev = self._slideshow_active.get(prefix)
             self._slideshow_active[prefix] = active
         if prev != active:
-            print(f"Homeboard '{prefix}' slideshow {'active' if active else 'inactive'}")
+            log.info("Homeboard '%s' slideshow %s",
+                     prefix, 'active' if active else 'inactive')
         if self._on_slideshow_active is not None:
             self._on_slideshow_active(prefix, active)
 
@@ -327,10 +334,10 @@ class RemoteControlCore:
             return False
         topic = f"{hb_id}/cmd/{service}/{command}"
         log_payload = payload if len(payload) <= 50 else payload[:50] + "..."
-        print(f"Publishing '{topic}' ({log_payload}) to homeboard broker")
+        log.info("Publishing '%s' (%s) to homeboard broker", topic, log_payload)
         info = self._client.publish(topic, payload, qos=0)
         if info.rc != mqtt.MQTT_ERR_SUCCESS:
-            print(f"Failed to publish '{topic}', rc={info.rc}")
+            log.error("Failed to publish '%s', rc=%s", topic, info.rc)
             return False
         return True
 

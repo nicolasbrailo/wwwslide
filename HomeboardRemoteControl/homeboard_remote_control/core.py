@@ -83,6 +83,10 @@ class RemoteControlCore:
     # "already claimed" rather than "new server collision".
     _ACTIVE_SERVER_CLAIM_DELAY_SECS = 2.0
 
+    # Max payload size, about 1MB. In the homeboard, this is set slightly larger than 1MB; ideally
+    # we'd catch failures here, not in the hb
+    _MAX_PAYLOAD_LEN = 1024 * 1024
+
     def __init__(self, mqtt_ip, mqtt_port, *,
                  public_url=None,
                  on_bridge_state=None,
@@ -314,6 +318,9 @@ class RemoteControlCore:
         hb_id = validate_homeboard_id(hb_id)
         if hb_id is None:
             return False
+        if len(payload) > self._MAX_PAYLOAD_LEN:
+            raise ValueError(f"MQTT payload for '{hb_id}' too large ({len(payload)}) max is {self._MAX_PAYLOAD_LEN}")
+
         topic = f"{hb_id}/cmd/{service}/{command}"
         log_payload = payload if len(payload) <= 50 else payload[:50] + "..."
         log.info("Publishing '%s' (%s) to homeboard broker", topic, log_payload)

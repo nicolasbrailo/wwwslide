@@ -109,6 +109,7 @@ class RemoteControlCore:
         self._slideshow_active = {}
         self._occupancy = {}
         self._host_info = {}
+        self.remote_control_url = public_url
 
         self._active_server_settled = False
         self._active_server_claim_timer = None
@@ -120,6 +121,9 @@ class RemoteControlCore:
         self._client.on_connect = self._on_connect
         self._client.on_message = self._on_message
         self._started = False
+
+    def get_remote_control_url(self):
+        return self.remote_control_url
 
     def start(self):
         if self._started:
@@ -194,6 +198,7 @@ class RemoteControlCore:
         url = data.get('url')
         # The broker echoes our own retained publish back to us; ignore it.
         if url == self._public_url:
+            self.remote_control_url = self._public_url
             return
         with self._lock:
             settled = self._active_server_settled
@@ -202,10 +207,12 @@ class RemoteControlCore:
             log.info("Homeboard remote control already claimed by %s; "
                      "this server (%s) will not publish a claim",
                      url, self._public_url)
+            self.remote_control_url = url
         else:
             log.error("Another homeboard remote control server announced "
                       "itself at %s (this server is at %s); collision detected",
                       url, self._public_url)
+            self.remote_control_url = self._public_url
 
     def _claim_active_server_if_free(self):
         with self._lock:

@@ -200,6 +200,10 @@ class RemoteControlCore:
         if url == self._public_url:
             self.remote_control_url = self._public_url
             return
+        # If we are not trying to be an active server, just assume the announced claim is active
+        if self._public_url == None:
+            self.remote_control_url = self._public_url
+            return
         with self._lock:
             settled = self._active_server_settled
             self._active_server_settled = True

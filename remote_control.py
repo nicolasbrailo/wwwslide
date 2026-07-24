@@ -108,6 +108,12 @@ class RemoteControl:
     def _clear_stale_offline(self):
         cutoff = time.time() #- self._JANITOR_STALE_SECS
         cleared = 0
+        # Records we couldn't parse can never become a usable homeboard, so
+        # evict them unconditionally (they don't appear in list_homeboards()).
+        for prefix in self._core.list_bad_bridges():
+            log.info("janitor: clearing unparseable retained %s/state/*", prefix)
+            self._core.clear_retained_state(prefix)
+            cleared += 1
         # list_homeboards() returns a snapshot, so we don't hold the core's
         # internal lock while publishing. Race window: a stale device could
         # come online between snapshot and clear; harmless because it'd
@@ -122,15 +128,9 @@ class RemoteControl:
                 continue
             if started_at >= cutoff:
                 continue
-            topic = f"{hb['id']}/state/bridge"
-            log.info("janitor: clearing stale retained %s (started_at=%s)",
-                     topic, started_at)
-            # Reach into the underlying paho client to publish a zero-byte
-            # retained payload, which the broker treats as "delete the
-            # retained record for this topic." Core's command path is for
-            # `<id>/cmd/...` only, so we don't route this through it.
-            self._core._client.publish(topic, payload=None,
-                                       qos=0, retain=True)
+            log.info("janitor: clearing stale retained %s/state/* (started_at=%s)",
+                     hb['id'], started_at)
+            self._core.clear_retained_state(hb['id'])
             cleared += 1
         log.info("janitor: cleared %d stale homeboard record(s)", cleared)
 

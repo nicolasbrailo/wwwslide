@@ -87,6 +87,10 @@ class RemoteControlCore:
     # we'd catch failures here, not in the hb
     _MAX_PAYLOAD_LEN = 1024 * 1024
 
+    # Retained `<prefix>/state/<leaf>` topics a homeboard publishes. Cleared as
+    # a group when evicting a stale/renamed/unparseable board.
+    _STATE_TOPIC_LEAVES = ('bridge', 'occupancy', 'slideshow_active', 'displayed_photo')
+
     def __init__(self, mqtt_ip, mqtt_port, *,
                  public_url=None,
                  on_bridge_state=None,
@@ -105,6 +109,10 @@ class RemoteControlCore:
 
         self._lock = threading.Lock()
         self._homeboards = {}
+        # Prefixes whose retained `state/bridge` record could not be parsed
+        # (non-JSON, wrong shape, bad state). Tracked so the janitor can evict
+        # these garbage retained records.
+        self._bad_bridges = set()
         self._displayed_photos = {}
         self._slideshow_active = {}
         self._occupancy = {}
@@ -235,22 +243,38 @@ class RemoteControlCore:
                              qos=1, retain=True)
 
     def _handle_bridge(self, prefix, raw_payload):
+        # An empty retained payload is the broker replaying a deleted retained
+        # record (e.g. the janitor cleared it). Drop all state for this prefix.
+        if not raw_payload:
+            with self._lock:
+                self._homeboards.pop(prefix, None)
+                self._host_info.pop(prefix, None)
+                self._bad_bridges.discard(prefix)
+            log.info("Homeboard '%s' retained bridge record cleared", prefix)
+            return
         try:
             data = json.loads(raw_payload.decode('utf-8'))
         except (UnicodeDecodeError, json.JSONDecodeError):
             log.warning("Non-JSON bridge state for '%s': %r", prefix, raw_payload)
+            with self._lock:
+                self._bad_bridges.add(prefix)
             return
         if not isinstance(data, dict):
             log.warning("bridge state for '%s' is not a JSON object", prefix)
+            with self._lock:
+                self._bad_bridges.add(prefix)
             return
         state = data.get('state')
         if state not in ('online', 'offline'):
             log.warning("Unexpected bridge state %r for '%s'", state, prefix)
+            with self._lock:
+                self._bad_bridges.add(prefix)
             return
         with self._lock:
             prev = self._homeboards.get(prefix)
             self._homeboards[prefix] = state
             self._host_info[prefix] = data
+            self._bad_bridges.discard(prefix)
         if prev != state:
             log.info("Homeboard '%s' is %s", prefix, state)
         if self._on_bridge_state is not None:
@@ -259,6 +283,16 @@ class RemoteControlCore:
             self._on_host_info(prefix, data)
 
     def _handle_displayed_photo(self, prefix, raw_payload):
+        if not raw_payload:
+            with self._lock:
+                self._displayed_photos.pop(prefix, None)
+            return
+        # Ignore state for prefixes we've never seen a bridge record for: those
+        # are stale/renamed retained records, and republishing them leaks ghost
+        # homeboards onto downstream buses.
+        if not self._is_known_homeboard(prefix):
+            log.debug("Ignoring displayed_photo for unknown homeboard '%s'", prefix)
+            return
         try:
             data = json.loads(raw_payload.decode('utf-8'))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -274,6 +308,13 @@ class RemoteControlCore:
             self._on_displayed_photo(prefix, data)
 
     def _handle_occupancy(self, prefix, raw_payload):
+        if not raw_payload:
+            with self._lock:
+                self._occupancy.pop(prefix, None)
+            return
+        if not self._is_known_homeboard(prefix):
+            log.debug("Ignoring occupancy for unknown homeboard '%s'", prefix)
+            return
         try:
             data = json.loads(raw_payload.decode('utf-8'))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -288,6 +329,13 @@ class RemoteControlCore:
             self._on_occupancy(prefix, data)
 
     def _handle_slideshow_active(self, prefix, raw_payload):
+        if not raw_payload:
+            with self._lock:
+                self._slideshow_active.pop(prefix, None)
+            return
+        if not self._is_known_homeboard(prefix):
+            log.debug("Ignoring slideshow_active for unknown homeboard '%s'", prefix)
+            return
         try:
             data = json.loads(raw_payload.decode('utf-8'))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -320,6 +368,29 @@ class RemoteControlCore:
                 "displayed_photo": self._displayed_photos.get(k),
                 "host_info": self._host_info.get(k),
             } for k, v in sorted(self._homeboards.items())]
+
+    def list_bad_bridges(self):
+        """Prefixes with a retained `state/bridge` record we couldn't parse."""
+        with self._lock:
+            return sorted(self._bad_bridges)
+
+    def _is_known_homeboard(self, prefix):
+        """Whether we've seen a valid `state/bridge` record for this prefix."""
+        with self._lock:
+            return prefix in self._homeboards
+
+    def clear_retained_state(self, hb_id):
+        """Delete all retained `<hb_id>/state/*` records from the broker.
+
+        A homeboard publishes several retained state topics (bridge, occupancy,
+        slideshow_active, displayed_photo). Clearing only `bridge` leaves the
+        others to be replayed on reconnect and leaked onto downstream buses, so
+        we evict the whole group. Publishes a zero-byte retained payload to each,
+        which the broker treats as "delete the retained record for this topic".
+        """
+        for leaf in self._STATE_TOPIC_LEAVES:
+            self._client.publish(f"{hb_id}/state/{leaf}",
+                                 payload=None, qos=0, retain=True)
 
     def get_displayed_photo(self, hb_id):
         with self._lock:

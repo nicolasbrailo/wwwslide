@@ -117,6 +117,9 @@ class RemoteControlCore:
         self._slideshow_active = {}
         self._occupancy = {}
         self._host_info = {}
+        # Latest `<prefix>/doctor` health telemetry per homeboard. Not retained,
+        # so this stays empty until the doctor service publishes its next cycle.
+        self._doctor = {}
         self.remote_control_url = public_url
 
         self._active_server_settled = False
@@ -165,6 +168,8 @@ class RemoteControlCore:
         client.subscribe('+/state/displayed_photo', qos=0)
         client.subscribe('+/state/slideshow_active', qos=0)
         client.subscribe('+/state/occupancy', qos=0)
+        # Health/telemetry from the homeboard-doctor service (not retained).
+        client.subscribe('+/doctor', qos=0)
 
         client.subscribe(self._ACTIVE_SERVER_TOPIC, qos=1)
         timer = threading.Timer(self._ACTIVE_SERVER_CLAIM_DELAY_SECS,
@@ -178,6 +183,9 @@ class RemoteControlCore:
             self._handle_active_server(msg)
             return
         parts = msg.topic.split('/')
+        if len(parts) == 2 and parts[1] == 'doctor':
+            self._handle_doctor(parts[0], msg.payload)
+            return
         if len(parts) != 3 or parts[1] != 'state':
             return
         prefix = parts[0]
@@ -250,6 +258,9 @@ class RemoteControlCore:
                 self._homeboards.pop(prefix, None)
                 self._host_info.pop(prefix, None)
                 self._bad_bridges.discard(prefix)
+                # Doctor stats aren't retained (nothing to clear on the broker),
+                # so drop the in-memory copy when the board is evicted.
+                self._doctor.pop(prefix, None)
             log.info("Homeboard '%s' retained bridge record cleared", prefix)
             return
         try:
@@ -358,6 +369,25 @@ class RemoteControlCore:
         if self._on_slideshow_active is not None:
             self._on_slideshow_active(prefix, active)
 
+    def _handle_doctor(self, prefix, raw_payload):
+        if not raw_payload:
+            with self._lock:
+                self._doctor.pop(prefix, None)
+            return
+        if not self._is_known_homeboard(prefix):
+            log.debug("Ignoring doctor stats for unknown homeboard '%s'", prefix)
+            return
+        try:
+            data = json.loads(raw_payload.decode('utf-8'))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            log.warning("Non-JSON doctor stats for '%s': %r", prefix, raw_payload)
+            return
+        if not isinstance(data, dict):
+            log.warning("doctor stats for '%s' is not a JSON object", prefix)
+            return
+        with self._lock:
+            self._doctor[prefix] = data
+
     def list_homeboards(self):
         with self._lock:
             return [{
@@ -367,6 +397,7 @@ class RemoteControlCore:
                 "occupancy": self._occupancy.get(k),
                 "displayed_photo": self._displayed_photos.get(k),
                 "host_info": self._host_info.get(k),
+                "doctor": self._doctor.get(k),
             } for k, v in sorted(self._homeboards.items())]
 
     def list_bad_bridges(self):
